@@ -5,6 +5,7 @@ Embedding providers for dense vector retrieval.
 import asyncio
 import hashlib
 import os
+from typing import Any
 
 import numpy as np
 
