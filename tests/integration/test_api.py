@@ -5,11 +5,12 @@ Integration tests for FastAPI REST endpoints.
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from apps.api.main import app
+from apps.api.main import app, db
 
 
 @pytest.mark.asyncio
 async def test_api_health_and_readiness() -> None:
+    await db.init_db()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         res_health = await ac.get("/health")
         assert res_health.status_code == 200
@@ -24,6 +25,7 @@ async def test_api_health_and_readiness() -> None:
 
 @pytest.mark.asyncio
 async def test_full_api_author_workflow() -> None:
+    await db.init_db()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         # 1. Create Project
         res = await ac.post(

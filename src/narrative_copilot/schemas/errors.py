@@ -3,6 +3,7 @@ Standardized error definitions and HTTP error responses.
 """
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -30,7 +31,7 @@ class ErrorCode(str, Enum):
 class ApiErrorDetail(BaseModel):
     code: ErrorCode
     message: str
-    details: dict = Field(default_factory=dict)
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class ApiErrorResponse(BaseModel):

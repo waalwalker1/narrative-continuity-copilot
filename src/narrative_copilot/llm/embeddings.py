@@ -25,7 +25,7 @@ class SentenceTransformerEmbeddingProvider:
 
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> None:
         self._model_name = model_name
-        self._model = None
+        self._model: Any = None
         self._dimension = 384
 
     @property
@@ -36,7 +36,7 @@ class SentenceTransformerEmbeddingProvider:
     def model_name(self) -> str:
         return self._model_name
 
-    def _get_model(self):  # type: ignore[no-untyped-def]
+    def _get_model(self) -> Any:
         if self._model is None:
             if os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1":
                 self._model = DeterministicEmbeddingStub(dimension=self._dimension)

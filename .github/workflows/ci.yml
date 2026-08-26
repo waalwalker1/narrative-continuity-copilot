@@ -49,6 +49,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
       - name: Run Tests with Coverage
+        env:
+          USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
           PYTHONPATH=. uv run pytest --cov=narrative_copilot --cov-report=term-missing --cov-report=xml tests/unit tests/property
 
@@ -81,6 +83,7 @@ jobs:
       - name: Run Integration Tests
         env:
           ELASTICSEARCH_URL: http://localhost:9200
+          USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
           PYTHONPATH=. uv run pytest tests/integration
 
@@ -131,9 +134,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
       - name: Run Evaluation Suite
+        env:
+          USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
           PYTHONPATH=. uv run python evals/runners/run_all.py
       - name: Check Metric Synchronization
+        env:
+          USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
           PYTHONPATH=. uv run python scripts/sync_public_metrics.py --check
 

@@ -35,9 +35,9 @@ class VertexAIProvider:
         self.project_id = project_id or os.getenv("GCP_PROJECT_ID", "")
         self.location = location or os.getenv("GCP_LOCATION", "us-central1")
         self.model_name = model_name or os.getenv("VERTEX_MODEL_NAME", "gemini-2.0-flash")
-        self._client = None
+        self._client: Any = None
 
-    def _get_client(self):  # type: ignore[no-untyped-def]
+    def _get_client(self) -> Any:
         if self._client is None:
             try:
                 from google import genai

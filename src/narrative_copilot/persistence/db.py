@@ -19,10 +19,11 @@ DEFAULT_DB_URL = "sqlite+aiosqlite:///./narrative_copilot.db"
 
 class Database:
     def __init__(self, db_url: str | None = None) -> None:
-        self.db_url = db_url or os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+        url_str: str = db_url or os.getenv("DATABASE_URL") or DEFAULT_DB_URL
         # Handle SQLite file path conversion for async
-        if self.db_url.startswith("sqlite:///"):
-            self.db_url = self.db_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+        if url_str.startswith("sqlite:///"):
+            url_str = url_str.replace("sqlite:///", "sqlite+aiosqlite:///")
+        self.db_url: str = url_str
 
         self.engine: AsyncEngine = create_async_engine(
             self.db_url,
