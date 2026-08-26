@@ -1,0 +1,43 @@
+{
+  "name": "narrative-continuity-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Evidence-grounded story memory and continuity review for long-form fiction",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config apps/web/vite.config.ts",
+    "build": "vue-tsc --noEmit -p apps/web/tsconfig.json && vite build --config apps/web/vite.config.ts",
+    "preview": "vite preview --config apps/web/vite.config.ts",
+    "lint": "eslint apps/web --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-path .gitignore",
+    "typecheck": "vue-tsc --noEmit -p apps/web/tsconfig.json",
+    "test": "vitest run --config apps/web/vitest.config.ts",
+    "test:coverage": "vitest run --coverage --config apps/web/vitest.config.ts",
+    "test:e2e": "playwright test --config apps/web/playwright.config.ts"
+  },
+  "dependencies": {
+    "@tanstack/vue-query": "^5.59.0",
+    "lucide-vue-next": "^0.453.0",
+    "pinia": "^2.2.4",
+    "quill": "^2.0.2",
+    "vue": "^3.5.12",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.9.0",
+    "@typescript-eslint/parser": "^8.9.0",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.12.0",
+    "eslint-plugin-vue": "^9.29.0",
+    "happy-dom": "^20.11.6",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.14",
+    "vitest": "^2.1.8",
+    "vue-tsc": "^2.1.6"
+  }
+}

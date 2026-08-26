@@ -1,0 +1,258 @@
+"""
+Elasticsearch index management and client abstraction.
+Supports both live Elasticsearch 8 instances and an in-memory test engine for isolated unit testing.
+"""
+
+import os
+from typing import Any
+
+import numpy as np
+from elasticsearch import AsyncElasticsearch, Elasticsearch
+
+CHUNKS_INDEX = "manuscript_chunks"
+MEMORY_INDEX = "story_memory"
+
+CHUNKS_MAPPING = {
+    "mappings": {
+        "properties": {
+            "chunk_id": {"type": "keyword"},
+            "project_id": {"type": "keyword"},
+            "revision_id": {"type": "keyword"},
+            "chapter_id": {"type": "keyword"},
+            "scene_id": {"type": "keyword"},
+            "block_ids": {"type": "keyword"},
+            "anchor_id": {"type": "keyword"},
+            "text": {"type": "text", "analyzer": "standard"},
+            "text_vector": {
+                "type": "dense_vector",
+                "dims": 384,
+                "index": True,
+                "similarity": "cosine",
+            },
+            "entity_ids": {"type": "keyword"},
+            "ordinal": {"type": "integer"},
+            "point_of_view": {"type": "keyword"},
+        }
+    }
+}
+
+MEMORY_MAPPING = {
+    "mappings": {
+        "properties": {
+            "doc_id": {"type": "keyword"},
+            "project_id": {"type": "keyword"},
+            "revision_id": {"type": "keyword"},
+            "memory_type": {"type": "keyword"},  # entity, fact, relation, rule, event, thread
+            "subject_entity_id": {"type": "keyword"},
+            "canonical_text": {"type": "text", "analyzer": "standard"},
+            "vector": {
+                "type": "dense_vector",
+                "dims": 384,
+                "index": True,
+                "similarity": "cosine",
+            },
+            "entity_ids": {"type": "keyword"},
+            "aliases": {"type": "keyword"},
+            "temporal_scope": {"type": "keyword"},
+            "narrative_scope": {"type": "keyword"},
+            "canonical_status": {"type": "keyword"},
+            "evidence_anchor_ids": {"type": "keyword"},
+        }
+    }
+}
+
+
+class ElasticsearchEngine:
+    """
+    Elasticsearch retrieval client supporting hybrid BM25 and vector search.
+    Includes in-memory search fallback for zero-dependency local environments.
+    """
+
+    def __init__(self, es_url: str | None = None) -> None:
+        self.es_url = es_url or os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
+        self._client: Elasticsearch | None = None
+        self._async_client: AsyncElasticsearch | None = None
+        self.use_mock = False
+
+        # In-memory document storage for local/mock operations
+        self._mock_chunks: dict[str, dict[str, Any]] = {}
+        self._mock_memory: dict[str, dict[str, Any]] = {}
+
+    def is_connected(self) -> bool:
+        """Check if live Elasticsearch server is accessible."""
+        try:
+            client = Elasticsearch(self.es_url, request_timeout=2.0)
+            return bool(client.ping())
+        except Exception:
+            return False
+
+    async def ensure_indices(self) -> None:
+        """Create indices with vector mappings if they do not exist."""
+        if self.is_connected():
+            client = Elasticsearch(self.es_url)
+            if not client.indices.exists(index=CHUNKS_INDEX):
+                client.indices.create(index=CHUNKS_INDEX, body=CHUNKS_MAPPING)
+            if not client.indices.exists(index=MEMORY_INDEX):
+                client.indices.create(index=MEMORY_INDEX, body=MEMORY_MAPPING)
+        else:
+            self.use_mock = True
+
+    async def index_chunk(self, doc: dict[str, Any]) -> None:
+        """Index a single manuscript chunk document."""
+        chunk_id = doc["chunk_id"]
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            client.index(index=CHUNKS_INDEX, id=chunk_id, document=doc)
+        else:
+            self._mock_chunks[chunk_id] = doc
+
+    async def index_chunks_bulk(self, docs: list[dict[str, Any]]) -> int:
+        """Bulk index manuscript chunk documents."""
+        if not docs:
+            return 0
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            operations = []
+            for d in docs:
+                operations.append({"index": {"_index": CHUNKS_INDEX, "_id": d["chunk_id"]}})
+                operations.append(d)
+            client.bulk(operations=operations, refresh=True)
+        else:
+            for d in docs:
+                self._mock_chunks[d["chunk_id"]] = d
+        return len(docs)
+
+    async def index_memory_doc(self, doc: dict[str, Any]) -> None:
+        """Index a single story memory document."""
+        doc_id = doc["doc_id"]
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            client.index(index=MEMORY_INDEX, id=doc_id, document=doc)
+        else:
+            self._mock_memory[doc_id] = doc
+
+    async def delete_revision_documents(self, project_id: str, revision_id: str) -> None:
+        """Remove indexed documents for a specific revision."""
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            query = {
+                "bool": {
+                    "must": [
+                        {"term": {"project_id": project_id}},
+                        {"term": {"revision_id": revision_id}},
+                    ]
+                }
+            }
+            client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
+            client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
+        else:
+            self._mock_chunks = {
+                k: v
+                for k, v in self._mock_chunks.items()
+                if not (v.get("project_id") == project_id and v.get("revision_id") == revision_id)
+            }
+            self._mock_memory = {
+                k: v
+                for k, v in self._mock_memory.items()
+                if not (v.get("project_id") == project_id and v.get("revision_id") == revision_id)
+            }
+
+    def bm25_search_chunks(
+        self,
+        query: str,
+        project_id: str,
+        revision_id: str | None = None,
+        entity_ids: list[str] | None = None,
+        top_k: int = 10,
+    ) -> list[tuple[dict[str, Any], float]]:
+        """Lexical BM25 search over manuscript chunks."""
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            must_clauses: list[dict[str, Any]] = [
+                {"match": {"text": query}},
+                {"term": {"project_id": project_id}},
+            ]
+            if revision_id:
+                must_clauses.append({"term": {"revision_id": revision_id}})
+            if entity_ids:
+                must_clauses.append({"terms": {"entity_ids": entity_ids}})
+
+            res = client.search(
+                index=CHUNKS_INDEX,
+                body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
+            )
+            return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+
+        # In-memory BM25 simulation
+        results: list[tuple[dict[str, Any], float]] = []
+        tokens = query.lower().split()
+        for doc in self._mock_chunks.values():
+            if doc.get("project_id") != project_id:
+                continue
+            if revision_id and doc.get("revision_id") != revision_id:
+                continue
+            if entity_ids:
+                doc_entities = doc.get("entity_ids", [])
+                if not any(e in doc_entities for e in entity_ids):
+                    continue
+
+            text_lower = doc.get("text", "").lower()
+            score = 0.0
+            for t in tokens:
+                count = text_lower.count(t)
+                if count > 0:
+                    score += count * 1.5
+            if score > 0:
+                results.append((doc, score))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+
+    def vector_search_chunks(
+        self,
+        query_vector: list[float],
+        project_id: str,
+        revision_id: str | None = None,
+        top_k: int = 10,
+    ) -> list[tuple[dict[str, Any], float]]:
+        """Dense vector search using cosine similarity."""
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            filter_clauses: list[dict[str, Any]] = [{"term": {"project_id": project_id}}]
+            if revision_id:
+                filter_clauses.append({"term": {"revision_id": revision_id}})
+
+            res = client.search(
+                index=CHUNKS_INDEX,
+                knn={
+                    "field": "text_vector",
+                    "query_vector": query_vector,
+                    "k": top_k,
+                    "num_candidates": max(top_k * 5, 50),
+                    "filter": filter_clauses,
+                },
+            )
+            return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+
+        # In-memory cosine similarity
+        q_vec = np.array(query_vector, dtype=float)
+        q_norm = np.linalg.norm(q_vec)
+        results: list[tuple[dict[str, Any], float]] = []
+
+        for doc in self._mock_chunks.values():
+            if doc.get("project_id") != project_id:
+                continue
+            if revision_id and doc.get("revision_id") != revision_id:
+                continue
+
+            doc_vec_raw = doc.get("text_vector")
+            if not doc_vec_raw:
+                continue
+            d_vec = np.array(doc_vec_raw, dtype=float)
+            d_norm = np.linalg.norm(d_vec)
+            if q_norm > 0 and d_norm > 0:
+                sim = float(np.dot(q_vec, d_vec) / (q_norm * d_norm))
+                results.append((doc, sim))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]

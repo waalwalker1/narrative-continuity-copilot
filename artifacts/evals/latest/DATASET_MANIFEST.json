@@ -1,0 +1,10 @@
+{
+  "benchmark_version": "1.0.0",
+  "story_packs_count": 36,
+  "total_cases_count": 216,
+  "train_cases_count": 150,
+  "held_out_cases_count": 66,
+  "contradictions_count": 144,
+  "hard_negatives_count": 72,
+  "intentional_ambiguity_count": 72
+}
