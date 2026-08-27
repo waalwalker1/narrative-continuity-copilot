@@ -28,7 +28,7 @@ async def test_full_story_memory_roundtrip_persistence() -> None:
     test_db = Database()
     await test_db.init_db()
 
-    async with test_db.get_session() as session:
+    async with test_db.session_scope() as session:
         repo = Repository(session)
 
         # Create Project & Revision
@@ -139,7 +139,7 @@ async def test_full_story_memory_roundtrip_persistence() -> None:
         await repo.save_story_threads(threads)
 
     # Re-open fresh session to verify persistent retrieval
-    async with test_db.get_session() as session2:
+    async with test_db.session_scope() as session2:
         repo2 = Repository(session2)
 
         loaded_entities = await repo2.get_entities("proj_mem_test")

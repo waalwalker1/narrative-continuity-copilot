@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from contextlib import asynccontextmanager
+
 from narrative_copilot.persistence.models import Base
 
 DEFAULT_DB_URL = "sqlite+aiosqlite:///./narrative_copilot.db"
@@ -42,6 +44,12 @@ class Database:
             await conn.run_sync(Base.metadata.create_all)
 
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
-        """Yield async database session."""
+        """Yield async database session (for FastAPI dependency)."""
+        async with self.session_factory() as session:
+            yield session
+
+    @asynccontextmanager
+    async def session_scope(self) -> AsyncGenerator[AsyncSession, None]:
+        """Context manager yielding async database session for tests and scripts."""
         async with self.session_factory() as session:
             yield session

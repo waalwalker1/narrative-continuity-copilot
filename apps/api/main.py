@@ -348,14 +348,19 @@ async def create_revision_from_scoped_edits(
 
     # Ingest and create new revision
     new_rev_id = str(uuid4())
-    units, anchors, rev = importer.import_text(
+    units, anchors, _ = importer.import_text(
         content=reconstructed_markdown,
         format_type="markdown",
         project_id=project_id,
         revision_id=new_rev_id,
         title=project.title,
     )
-    rev.parent_revision_id = base_rev_id
+    rev = ManuscriptRevision(
+        revision_id=new_rev_id,
+        project_id=project_id,
+        parent_revision_id=base_rev_id,
+        word_count=len(reconstructed_markdown.split()),
+    )
 
     await repo.save_revision(rev)
     await repo.save_structural_units(units)

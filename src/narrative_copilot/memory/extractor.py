@@ -262,7 +262,13 @@ class StoryMemoryExtractor:
                 if ent.canonical_name not in matched_canonical.aliases:
                     matched_canonical.aliases.append(ent.canonical_name)
             else:
-                id_remap[ent.entity_id] = ent.entity_id
-                canonical.append(ent)
+                existing_match = next((c for c in canonical if c.entity_id == ent.entity_id), None)
+                if existing_match is not None:
+                    id_remap[ent.entity_id] = existing_match.entity_id
+                    if ent.canonical_name not in existing_match.aliases:
+                        existing_match.aliases.append(ent.canonical_name)
+                else:
+                    id_remap[ent.entity_id] = ent.entity_id
+                    canonical.append(ent)
 
         return canonical, id_remap

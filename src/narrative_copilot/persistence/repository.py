@@ -234,8 +234,11 @@ class Repository:
 
     # --- Story Memory ---
     async def save_entities(self, entities: list[Entity]) -> None:
-        models = [
-            EntityModel(
+        if not entities:
+            return
+        unique_entities: dict[str, Entity] = {e.entity_id: e for e in entities}
+        for e in unique_entities.values():
+            model = EntityModel(
                 entity_id=e.entity_id,
                 project_id=e.project_id,
                 canonical_name=e.canonical_name,
@@ -245,9 +248,7 @@ class Repository:
                 canonical_status=e.canonical_status.value,
                 evidence_anchor_ids_json=json.dumps(e.evidence_anchor_ids),
             )
-            for e in entities
-        ]
-        self.session.add_all(models)
+            await self.session.merge(model)
         await self.session.commit()
 
     async def get_entities(self, project_id: str) -> list[Entity]:

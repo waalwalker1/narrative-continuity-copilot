@@ -3,6 +3,7 @@ Elasticsearch index management and client abstraction.
 Supports both live Elasticsearch 8 instances and an in-memory test engine for isolated unit testing.
 """
 
+import contextlib
 import os
 from typing import Any
 
@@ -264,7 +265,7 @@ class ElasticsearchEngine:
         """Remove indexed documents for a specific revision."""
         if self.is_connected() and not self.use_mock:
             await self.ensure_indices()
-            try:
+            with contextlib.suppress(Exception):
                 client = Elasticsearch(self.es_url)
                 query = {
                     "bool": {
@@ -274,16 +275,10 @@ class ElasticsearchEngine:
                         ]
                     }
                 }
-                try:
+                with contextlib.suppress(Exception):
                     client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
-                except Exception:
-                    pass
-                try:
+                with contextlib.suppress(Exception):
                     client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
-                except Exception:
-                    pass
-            except Exception:
-                pass
         else:
             self._mock_chunks = {
                 k: v
