@@ -57,6 +57,14 @@ class Repository:
         await self.session.commit()
         return project
 
+    async def update_project_active_revision(self, project_id: str, revision_id: str) -> None:
+        stmt = select(ProjectModel).where(ProjectModel.project_id == project_id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if row:
+            row.active_revision_id = revision_id
+            await self.session.commit()
+
     async def get_project(self, project_id: str) -> ManuscriptProject | None:
         stmt = select(ProjectModel).where(ProjectModel.project_id == project_id)
         result = await self.session.execute(stmt)

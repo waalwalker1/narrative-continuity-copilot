@@ -168,30 +168,63 @@ class StoryMemoryExtractor:
             validated_threads.append(th_valid)
 
         # Stage 4: Entity deduplication and canonicalization
-        canonical_entities = self._deduplicate_entities(validated_entities)
+        canonical_entities, id_remap = self._deduplicate_entities(validated_entities)
+
+        remapped_facts = [
+            f.model_copy(
+                update={"subject_entity_id": id_remap.get(f.subject_entity_id, f.subject_entity_id)}
+            )
+            for f in validated_facts
+        ]
 
         return StoryMemory(
             project_id=project_id,
             revision_id=revision_id,
             entities=canonical_entities,
-            facts=validated_facts,
+            facts=remapped_facts,
             relations=validated_relations,
             timeline_events=validated_events,
             world_rules=validated_rules,
             story_threads=validated_threads,
         )
 
-    def _deduplicate_entities(self, entities: list[Entity]) -> list[Entity]:
-        """Group and unify entities by normalized canonical name."""
-        by_norm: dict[str, Entity] = {}
-        for ent in entities:
+    def _deduplicate_entities(self, entities: list[Entity]) -> tuple[list[Entity], dict[str, str]]:
+        """Group and unify entities by normalized canonical name and build ID remap dictionary."""
+        id_remap: dict[str, str] = {}
+        # Sort so fuller names (more tokens) come first
+        sorted_entities = sorted(
+            entities,
+            key=lambda e: len(self.entity_resolver.normalize_name(e.canonical_name).split()),
+            reverse=True,
+        )
+
+        canonical: list[Entity] = []
+        for ent in sorted_entities:
             norm = self.entity_resolver.normalize_name(ent.canonical_name)
             if not norm:
                 norm = ent.canonical_name.lower().strip()
-            if norm not in by_norm:
-                by_norm[norm] = ent
+            ent_tokens = set(norm.split())
+
+            # Check if this matches an existing canonical entity
+            matched_canonical = None
+            for can in canonical:
+                can_norm = self.entity_resolver.normalize_name(can.canonical_name)
+                can_tokens = set(can_norm.split())
+                if (
+                    norm == can_norm
+                    or ent_tokens.issubset(can_tokens)
+                    or can_tokens.issubset(ent_tokens)
+                ):
+                    matched_canonical = can
+                    break
+
+            if matched_canonical is not None:
+                id_remap[ent.entity_id] = matched_canonical.entity_id
+                # Merge aliases
+                if ent.canonical_name not in matched_canonical.aliases:
+                    matched_canonical.aliases.append(ent.canonical_name)
             else:
-                existing = by_norm[norm]
-                merged = self.entity_resolver.merge_entities(existing, [ent])
-                by_norm[norm] = merged
-        return list(by_norm.values())
+                id_remap[ent.entity_id] = ent.entity_id
+                canonical.append(ent)
+
+        return canonical, id_remap

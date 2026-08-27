@@ -210,6 +210,7 @@ async def import_manuscript(
     await repo.create_revision(revision, raw_markdown=md_text)
     await repo.save_structural_units(units)
     await repo.save_anchors(anchors)
+    await repo.update_project_active_revision(project_id, revision_id)
 
     log_privacy_safe(
         "manuscript_imported",
@@ -279,6 +280,7 @@ async def create_revision(
     await repo.create_revision(revision, raw_markdown=md_text)
     await repo.save_structural_units(units)
     await repo.save_anchors(anchors)
+    await repo.update_project_active_revision(project_id, new_rev_id)
 
     # Re-anchor existing facts
     reanchor_results = reanchoring_engine.reanchor_all(
