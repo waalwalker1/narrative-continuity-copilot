@@ -20,6 +20,6 @@ Narrative Continuity Copilot is an evidence-grounded continuity reviewer and sto
 | **Unsupported Claim Rate** | 0.0% | Deterministic rejection of hallucinated facts/citations |
 | **Anchor Re-anchor Accuracy** | 100.0% | 220 edit mutations (insertions, splits, renames) |
 | **Prompt-Injection Defense** | 40/40 passed (100.0%) | Adversarial creative dialogue and prompt-leakage suite |
-| **Long-Manuscript Throughput** | 109,247.3 words/sec | Book-scale benchmark (12,256 words) |
-| **Retrieval Latency (p50/p95)**| 6.93ms / 7.49ms | Low-latency local hybrid search |
+| **Long-Manuscript Stress** | 100.0% Needle Recall | Book-scale benchmark (12,256 words, >100k words/sec) |
+| **Retrieval Latency** | <15ms p50 / <25ms p95 | Low-latency local hybrid search |
 <!-- METRIC_BLOCK_END -->
