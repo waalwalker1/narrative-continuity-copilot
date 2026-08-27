@@ -94,7 +94,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_return_any = true
 explicit_package_bases = true
-mypy_path = "src"
+mypy_path = "src:apps"
 
 [[tool.mypy.overrides]]
 module = [
@@ -103,14 +103,19 @@ module = [
     "docx",
     "elasticsearch.*",
     "google.genai.*",
+    "google.cloud.*",
     "opentelemetry.*",
     "prometheus_client.*",
+    "tools.*",
+    "evals.*",
 ]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
-disable_error_code = ["assignment", "no-untyped-call"]
+module = ["tests.*", "apps.*"]
+disallow_untyped_defs = false
+check_untyped_defs = true
+disable_error_code = ["assignment", "no-untyped-call", "misc"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

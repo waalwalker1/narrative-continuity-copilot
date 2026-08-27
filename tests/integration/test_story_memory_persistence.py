@@ -6,7 +6,7 @@ timeline events, world rules, and story threads across repository and API.
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from apps.api.main import app, db
+from apps.api.main import app, db, es_engine
 from narrative_copilot.persistence.db import Database
 from narrative_copilot.persistence.repository import Repository
 from narrative_copilot.schemas import (
@@ -174,6 +174,7 @@ async def test_full_story_memory_roundtrip_persistence() -> None:
 @pytest.mark.asyncio
 async def test_api_memory_endpoint_returns_all_models() -> None:
     await db.init_db()
+    await es_engine.ensure_indices()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         res = await ac.post("/api/v1/projects", json={"title": "Endpoint Memory Test"})
         assert res.status_code == 201

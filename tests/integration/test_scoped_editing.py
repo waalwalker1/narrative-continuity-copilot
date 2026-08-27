@@ -5,12 +5,13 @@ Tests for scoped chapter editing endpoint verifying manuscript integrity.
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from apps.api.main import app, db
+from apps.api.main import app, db, es_engine
 
 
 @pytest.mark.asyncio
 async def test_scoped_chapter_editing_preserves_untouched_chapters() -> None:
     await db.init_db()
+    await es_engine.ensure_indices()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         # 1. Create project
         res_proj = await ac.post("/api/v1/projects", json={"title": "Scoped Editing Test Saga"})

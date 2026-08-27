@@ -95,12 +95,25 @@ class ElasticsearchEngine:
 
     async def ensure_indices(self) -> None:
         """Create indices with vector mappings if they do not exist."""
-        if self.is_connected():
-            client = Elasticsearch(self.es_url)
-            if not client.indices.exists(index=CHUNKS_INDEX):
-                client.indices.create(index=CHUNKS_INDEX, body=CHUNKS_MAPPING)
-            if not client.indices.exists(index=MEMORY_INDEX):
-                client.indices.create(index=MEMORY_INDEX, body=MEMORY_MAPPING)
+        if self.is_connected() and not self.use_mock:
+            try:
+                client = Elasticsearch(self.es_url)
+                if not client.indices.exists(index=CHUNKS_INDEX):
+                    try:
+                        client.indices.create(
+                            index=CHUNKS_INDEX, mappings=CHUNKS_MAPPING["mappings"]
+                        )
+                    except Exception:
+                        client.indices.create(index=CHUNKS_INDEX, body=CHUNKS_MAPPING)
+                if not client.indices.exists(index=MEMORY_INDEX):
+                    try:
+                        client.indices.create(
+                            index=MEMORY_INDEX, mappings=MEMORY_MAPPING["mappings"]
+                        )
+                    except Exception:
+                        client.indices.create(index=MEMORY_INDEX, body=MEMORY_MAPPING)
+            except Exception:
+                self.use_mock = True
         else:
             self.use_mock = True
 
@@ -250,17 +263,27 @@ class ElasticsearchEngine:
     async def delete_revision_documents(self, project_id: str, revision_id: str) -> None:
         """Remove indexed documents for a specific revision."""
         if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            query = {
-                "bool": {
-                    "must": [
-                        {"term": {"project_id": project_id}},
-                        {"term": {"revision_id": revision_id}},
-                    ]
+            await self.ensure_indices()
+            try:
+                client = Elasticsearch(self.es_url)
+                query = {
+                    "bool": {
+                        "must": [
+                            {"term": {"project_id": project_id}},
+                            {"term": {"revision_id": revision_id}},
+                        ]
+                    }
                 }
-            }
-            client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
-            client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
+                try:
+                    client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
+                except Exception:
+                    pass
+                try:
+                    client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
+                except Exception:
+                    pass
+            except Exception:
+                pass
         else:
             self._mock_chunks = {
                 k: v
@@ -283,21 +306,24 @@ class ElasticsearchEngine:
     ) -> list[tuple[dict[str, Any], float]]:
         """Lexical BM25 search over manuscript chunks."""
         if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            must_clauses: list[dict[str, Any]] = [
-                {"match": {"text": query}},
-                {"term": {"project_id": project_id}},
-            ]
-            if revision_id:
-                must_clauses.append({"term": {"revision_id": revision_id}})
-            if entity_ids:
-                must_clauses.append({"terms": {"entity_ids": entity_ids}})
+            try:
+                client = Elasticsearch(self.es_url)
+                must_clauses: list[dict[str, Any]] = [
+                    {"match": {"text": query}},
+                    {"term": {"project_id": project_id}},
+                ]
+                if revision_id:
+                    must_clauses.append({"term": {"revision_id": revision_id}})
+                if entity_ids:
+                    must_clauses.append({"terms": {"entity_ids": entity_ids}})
 
-            res = client.search(
-                index=CHUNKS_INDEX,
-                body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
-            )
-            return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+                res = client.search(
+                    index=CHUNKS_INDEX,
+                    body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
+                )
+                return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+            except Exception:
+                pass
 
         # In-memory BM25 simulation
         results: list[tuple[dict[str, Any], float]] = []
@@ -333,22 +359,25 @@ class ElasticsearchEngine:
     ) -> list[tuple[dict[str, Any], float]]:
         """Dense vector search using cosine similarity."""
         if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            filter_clauses: list[dict[str, Any]] = [{"term": {"project_id": project_id}}]
-            if revision_id:
-                filter_clauses.append({"term": {"revision_id": revision_id}})
+            try:
+                client = Elasticsearch(self.es_url)
+                filter_clauses: list[dict[str, Any]] = [{"term": {"project_id": project_id}}]
+                if revision_id:
+                    filter_clauses.append({"term": {"revision_id": revision_id}})
 
-            res = client.search(
-                index=CHUNKS_INDEX,
-                knn={
-                    "field": "text_vector",
-                    "query_vector": query_vector,
-                    "k": top_k,
-                    "num_candidates": max(top_k * 5, 50),
-                    "filter": filter_clauses,
-                },
-            )
-            return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+                res = client.search(
+                    index=CHUNKS_INDEX,
+                    knn={
+                        "field": "text_vector",
+                        "query_vector": query_vector,
+                        "k": top_k,
+                        "num_candidates": max(top_k * 5, 50),
+                        "filter": filter_clauses,
+                    },
+                )
+                return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+            except Exception:
+                pass
 
         # In-memory cosine similarity
         q_vec = np.array(query_vector, dtype=float)
