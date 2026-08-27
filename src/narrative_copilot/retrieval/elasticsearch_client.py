@@ -7,7 +7,12 @@ import os
 from typing import Any
 
 import numpy as np
-from elasticsearch import AsyncElasticsearch, Elasticsearch
+
+try:
+    from elasticsearch import AsyncElasticsearch, Elasticsearch
+except ImportError:
+    AsyncElasticsearch = None  # type: ignore[assignment,misc]
+    Elasticsearch = None  # type: ignore[assignment,misc]
 
 CHUNKS_INDEX = "manuscript_chunks"
 MEMORY_INDEX = "story_memory"
@@ -80,6 +85,8 @@ class ElasticsearchEngine:
 
     def is_connected(self) -> bool:
         """Check if live Elasticsearch server is accessible."""
+        if Elasticsearch is None:
+            return False
         try:
             client = Elasticsearch(self.es_url, request_timeout=2.0)
             return bool(client.ping())
@@ -130,6 +137,115 @@ class ElasticsearchEngine:
             client.index(index=MEMORY_INDEX, id=doc_id, document=doc)
         else:
             self._mock_memory[doc_id] = doc
+
+    async def index_memory_bulk(self, docs: list[dict[str, Any]]) -> int:
+        """Bulk index story memory documents."""
+        if not docs:
+            return 0
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            operations = []
+            for d in docs:
+                operations.append({"index": {"_index": MEMORY_INDEX, "_id": d["doc_id"]}})
+                operations.append(d)
+            client.bulk(operations=operations, refresh=True)
+        else:
+            for d in docs:
+                self._mock_memory[d["doc_id"]] = d
+        return len(docs)
+
+    async def delete_chunks_by_ids(self, project_id: str, chunk_ids: list[str]) -> None:
+        """Delete specific chunk documents by ID."""
+        if not chunk_ids:
+            return
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            query = {
+                "bool": {
+                    "must": [
+                        {"term": {"project_id": project_id}},
+                        {"terms": {"chunk_id": chunk_ids}},
+                    ]
+                }
+            }
+            client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
+        else:
+            for cid in chunk_ids:
+                self._mock_chunks.pop(cid, None)
+
+    async def delete_memory_by_anchors(self, project_id: str, anchor_ids: list[str]) -> None:
+        """Delete memory documents referencing invalid/updated anchors."""
+        if not anchor_ids:
+            return
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            query = {
+                "bool": {
+                    "must": [
+                        {"term": {"project_id": project_id}},
+                        {"terms": {"evidence_anchor_ids": anchor_ids}},
+                    ]
+                }
+            }
+            client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
+        else:
+            to_del = [
+                k
+                for k, v in self._mock_memory.items()
+                if v.get("project_id") == project_id
+                and any(a in v.get("evidence_anchor_ids", []) for a in anchor_ids)
+            ]
+            for k in to_del:
+                self._mock_memory.pop(k, None)
+
+    async def search_memory(
+        self,
+        query: str,
+        project_id: str,
+        revision_id: str | None = None,
+        memory_types: list[str] | None = None,
+        top_k: int = 10,
+    ) -> list[tuple[dict[str, Any], float]]:
+        """Search story memory index for relevant facts, rules, events, relations."""
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            must_clauses: list[dict[str, Any]] = [
+                {"match": {"canonical_text": query}},
+                {"term": {"project_id": project_id}},
+            ]
+            if revision_id:
+                must_clauses.append({"term": {"revision_id": revision_id}})
+            if memory_types:
+                must_clauses.append({"terms": {"memory_type": memory_types}})
+
+            res = client.search(
+                index=MEMORY_INDEX,
+                body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
+            )
+            return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+
+        # In-memory mock search
+        results: list[tuple[dict[str, Any], float]] = []
+        tokens = query.lower().split()
+        for doc in self._mock_memory.values():
+            if doc.get("project_id") != project_id:
+                continue
+            if revision_id and doc.get("revision_id") != revision_id:
+                continue
+            if memory_types and doc.get("memory_type") not in memory_types:
+                continue
+
+            text_lower = doc.get("canonical_text", "").lower()
+            score = 0.0
+            for t in tokens:
+                count = text_lower.count(t)
+                if count > 0:
+                    score += count * 2.0
+            if score > 0:
+                results.append((doc, score))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
 
     async def delete_revision_documents(self, project_id: str, revision_id: str) -> None:
         """Remove indexed documents for a specific revision."""

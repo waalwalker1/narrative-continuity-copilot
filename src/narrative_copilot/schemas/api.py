@@ -31,6 +31,13 @@ class CreateRevisionRequest(BaseModel):
     content_markdown: str
 
 
+class ScopedEditRequest(BaseModel):
+    base_revision_id: str | None = None
+    chapter_id: str
+    chapter_content_markdown: str
+    idempotency_key: str | None = None
+
+
 class IndexRequest(BaseModel):
     revision_id: str | None = None
     incremental: bool = False

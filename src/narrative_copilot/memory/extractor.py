@@ -99,11 +99,7 @@ class StoryMemoryExtractor:
         validated_facts: list[FactAssertion] = []
         for fact in extracted_memory.facts:
             clean_anchors = [aid for aid in fact.evidence_anchor_ids if aid in valid_anchor_ids]
-            # Reject facts with zero valid evidence anchors
-            if not clean_anchors and anchors:
-                # Associate with first available anchor if textually plausible
-                clean_anchors = [anchors[0].anchor_id]
-
+            # Strict Grounding Rule: reject facts with zero valid supporting manuscript anchors (no citation rescue)
             if clean_anchors:
                 fact_valid = fact.model_copy(
                     update={
@@ -117,7 +113,7 @@ class StoryMemoryExtractor:
         validated_relations: list[RelationAssertion] = []
         for rel in extracted_memory.relations:
             clean_anchors = [aid for aid in rel.evidence_anchor_ids if aid in valid_anchor_ids]
-            if clean_anchors or not anchors:
+            if clean_anchors:
                 rel_valid = rel.model_copy(
                     update={
                         "project_id": project_id,
@@ -130,51 +126,91 @@ class StoryMemoryExtractor:
         validated_events: list[TimelineEvent] = []
         for ev in extracted_memory.timeline_events:
             clean_anchors = [aid for aid in ev.evidence_anchor_ids if aid in valid_anchor_ids]
-            ev_valid = ev.model_copy(
-                update={
-                    "project_id": project_id,
-                    "revision_id": revision_id,
-                    "evidence_anchor_ids": clean_anchors,
-                }
-            )
-            validated_events.append(ev_valid)
+            if clean_anchors:
+                ev_valid = ev.model_copy(
+                    update={
+                        "project_id": project_id,
+                        "revision_id": revision_id,
+                        "evidence_anchor_ids": clean_anchors,
+                    }
+                )
+                validated_events.append(ev_valid)
 
         validated_rules: list[WorldRule] = []
         for rule in extracted_memory.world_rules:
             clean_anchors = [aid for aid in rule.evidence_anchor_ids if aid in valid_anchor_ids]
-            rule_valid = rule.model_copy(
-                update={
-                    "project_id": project_id,
-                    "revision_id": revision_id,
-                    "evidence_anchor_ids": clean_anchors,
-                }
-            )
-            validated_rules.append(rule_valid)
+            if clean_anchors:
+                rule_valid = rule.model_copy(
+                    update={
+                        "project_id": project_id,
+                        "revision_id": revision_id,
+                        "evidence_anchor_ids": clean_anchors,
+                    }
+                )
+                validated_rules.append(rule_valid)
 
         validated_threads: list[StoryThread] = []
         for th in extracted_memory.story_threads:
-            intro_anchor = (
-                th.introduced_at_anchor
-                if th.introduced_at_anchor in valid_anchor_ids
-                else (anchors[0].anchor_id if anchors else "")
-            )
-            th_valid = th.model_copy(
-                update={
-                    "project_id": project_id,
-                    "revision_id": revision_id,
-                    "introduced_at_anchor": intro_anchor,
-                }
-            )
-            validated_threads.append(th_valid)
+            if th.introduced_at_anchor in valid_anchor_ids:
+                clean_update_anchors = [aid for aid in th.update_anchor_ids if aid in valid_anchor_ids]
+                th_valid = th.model_copy(
+                    update={
+                        "project_id": project_id,
+                        "revision_id": revision_id,
+                        "introduced_at_anchor": th.introduced_at_anchor,
+                        "update_anchor_ids": clean_update_anchors,
+                    }
+                )
+                validated_threads.append(th_valid)
 
         # Stage 4: Entity deduplication and canonicalization
         canonical_entities, id_remap = self._deduplicate_entities(validated_entities)
 
         remapped_facts = [
             f.model_copy(
-                update={"subject_entity_id": id_remap.get(f.subject_entity_id, f.subject_entity_id)}
+                update={
+                    "subject_entity_id": id_remap.get(f.subject_entity_id, f.subject_entity_id),
+                    "object_entity_id": id_remap.get(f.object_entity_id, f.object_entity_id)
+                    if f.object_entity_id
+                    else None,
+                }
             )
             for f in validated_facts
+        ]
+
+        remapped_relations = [
+            r.model_copy(
+                update={
+                    "subject_entity_id": id_remap.get(r.subject_entity_id, r.subject_entity_id),
+                    "object_entity_id": id_remap.get(r.object_entity_id, r.object_entity_id),
+                }
+            )
+            for r in validated_relations
+        ]
+
+        remapped_events = [
+            e.model_copy(
+                update={
+                    "participant_entity_ids": [
+                        id_remap.get(pid, pid) for pid in e.participant_entity_ids
+                    ],
+                    "location_entity_id": id_remap.get(e.location_entity_id, e.location_entity_id)
+                    if e.location_entity_id
+                    else None,
+                }
+            )
+            for e in validated_events
+        ]
+
+        remapped_threads = [
+            t.model_copy(
+                update={
+                    "related_entity_ids": [
+                        id_remap.get(eid, eid) for eid in t.related_entity_ids
+                    ]
+                }
+            )
+            for t in validated_threads
         ]
 
         return StoryMemory(
@@ -182,10 +218,10 @@ class StoryMemoryExtractor:
             revision_id=revision_id,
             entities=canonical_entities,
             facts=remapped_facts,
-            relations=validated_relations,
-            timeline_events=validated_events,
+            relations=remapped_relations,
+            timeline_events=remapped_events,
             world_rules=validated_rules,
-            story_threads=validated_threads,
+            story_threads=remapped_threads,
         )
 
     def _deduplicate_entities(self, entities: list[Entity]) -> tuple[list[Entity], dict[str, str]]:

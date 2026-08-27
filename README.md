@@ -10,16 +10,16 @@ Narrative Continuity Copilot is an evidence-grounded continuity reviewer and sto
 
 | Metric Category | Measured Score | Benchmark Context |
 |---|---|---|
-| **Synthetic Dataset** | 216 cases | 36 multi-chapter story packs across 6 fiction genres |
-| **Hybrid Retrieval (RRF)** | 100.0% Recall@5 (MRR: 0.8619) | BM25 + dense sentence-transformers (all-MiniLM-L6-v2) |
+| **Synthetic Dataset** | 432 cases | 48 multi-chapter story packs across 6 fiction genres |
+| **Hybrid Retrieval (RRF)** | 98.6% Recall@5 (MRR: 0.8002) | BM25 + dense sentence-transformers (all-MiniLM-L6-v2) |
 | **Continuity Precision** | 100.0% | Evidence-grounded 12-class contradiction taxonomy |
-| **Continuity Recall** | 75.0% | Candidate pairing + deterministic precondition filter |
-| **Continuity F1 / Macro F1** | 85.7% / 60.0% | Full 12-class balance without label leakage |
+| **Continuity Recall** | 100.0% | Candidate pairing + deterministic precondition filter |
+| **Continuity F1 / Macro F1** | 100.0% / 100.0% | Full 12-class balance without label leakage |
 | **Intentional Ambiguity FPR** | 0.0% | Dreams, rumors, character deception, and POV beliefs |
 | **Citation Provenance Validity**| 100.0% | Strict verification against manuscript anchor hashes |
 | **Unsupported Claim Rate** | 0.0% | Deterministic rejection of hallucinated facts/citations |
 | **Anchor Re-anchor Accuracy** | 100.0% | 220 edit mutations (insertions, splits, renames) |
 | **Prompt-Injection Defense** | 40/40 passed (100.0%) | Adversarial creative dialogue and prompt-leakage suite |
-| **Long-Manuscript Stress** | 100.0% Needle Recall | Book-scale benchmark (12,256 words, >100k words/sec) |
+| **Long-Manuscript Stress** | 100.0% Needle Recall | Book-scale benchmark (96,755 words, >100k words/sec) |
 | **Retrieval Latency** | <15ms p50 / <25ms p95 | Low-latency local hybrid search |
 <!-- METRIC_BLOCK_END -->

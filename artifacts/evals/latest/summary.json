@@ -2,49 +2,114 @@
   "benchmark_version": "1.0.0",
   "dataset": {
     "benchmark_version": "1.0.0",
-    "story_packs_count": 36,
-    "total_cases_count": 216,
-    "train_cases_count": 150,
-    "held_out_cases_count": 66,
-    "contradictions_count": 144,
-    "hard_negatives_count": 72,
-    "intentional_ambiguity_count": 72
+    "generator_version": "2.0.0-reference",
+    "generated_at": "2026-08-27T10:22:59.742520+00:00",
+    "corpus_sha256": "42e326dd25a258a5c6eb5ec5d1a521fb6488d962ee171895288405f790e281bf",
+    "story_packs_count": 48,
+    "train_story_ids": [
+      "story_pack_001",
+      "story_pack_002",
+      "story_pack_003",
+      "story_pack_004",
+      "story_pack_005",
+      "story_pack_006",
+      "story_pack_007",
+      "story_pack_008",
+      "story_pack_009",
+      "story_pack_010",
+      "story_pack_011",
+      "story_pack_012",
+      "story_pack_013",
+      "story_pack_014",
+      "story_pack_015",
+      "story_pack_016",
+      "story_pack_017",
+      "story_pack_018",
+      "story_pack_019",
+      "story_pack_020",
+      "story_pack_021",
+      "story_pack_022",
+      "story_pack_023",
+      "story_pack_024",
+      "story_pack_025",
+      "story_pack_026",
+      "story_pack_027",
+      "story_pack_028",
+      "story_pack_029",
+      "story_pack_030",
+      "story_pack_031",
+      "story_pack_032"
+    ],
+    "held_out_story_ids": [
+      "story_pack_033",
+      "story_pack_034",
+      "story_pack_035",
+      "story_pack_036",
+      "story_pack_037",
+      "story_pack_038",
+      "story_pack_039",
+      "story_pack_040",
+      "story_pack_041",
+      "story_pack_042",
+      "story_pack_043",
+      "story_pack_044",
+      "story_pack_045",
+      "story_pack_046",
+      "story_pack_047",
+      "story_pack_048"
+    ],
+    "total_cases_count": 432,
+    "train_cases_count": 288,
+    "held_out_cases_count": 144,
+    "per_class_counts": {
+      "ATTRIBUTE_CONTRADICTION": 48,
+      "RELATIONSHIP_CONTRADICTION": 48,
+      "LOCATION_CONTINUITY": 48,
+      "OBJECT_STATE_CONTINUITY": 48,
+      "INJURY_OR_PHYSICAL_STATE": 48,
+      "AGE_DATE_ARITHMETIC": 48,
+      "WORLD_RULE_VIOLATION": 48,
+      "POV_OR_EPISTEMIC_CONFLICT": 96
+    },
+    "contradictions_count": 336,
+    "hard_negatives_count": 96,
+    "intentional_ambiguity_count": 96
   },
   "retrieval": {
     "BM25_ONLY": {
-      "queries_evaluated": 216,
-      "recall_at_1": 0.8333,
-      "recall_at_5": 1.0,
+      "queries_evaluated": 432,
+      "recall_at_1": 0.6528,
+      "recall_at_5": 0.9861,
       "recall_at_10": 1.0,
-      "mrr": 0.887,
-      "ndcg_at_10": 0.9151,
+      "mrr": 0.805,
+      "ndcg_at_10": 0.8547,
       "exact_anchor_hit_rate": 1.0
     },
     "DENSE_ONLY": {
-      "queries_evaluated": 216,
-      "recall_at_1": 0.625,
-      "recall_at_5": 1.0,
+      "queries_evaluated": 432,
+      "recall_at_1": 0.5833,
+      "recall_at_5": 0.9861,
       "recall_at_10": 1.0,
-      "mrr": 0.7405,
-      "ndcg_at_10": 0.8036,
+      "mrr": 0.7573,
+      "ndcg_at_10": 0.8189,
       "exact_anchor_hit_rate": 1.0
     },
     "HYBRID_RRF": {
-      "queries_evaluated": 216,
-      "recall_at_1": 0.7917,
-      "recall_at_5": 1.0,
+      "queries_evaluated": 432,
+      "recall_at_1": 0.625,
+      "recall_at_5": 0.9861,
       "recall_at_10": 1.0,
-      "mrr": 0.8619,
-      "ndcg_at_10": 0.8961,
+      "mrr": 0.8002,
+      "ndcg_at_10": 0.8516,
       "exact_anchor_hit_rate": 1.0
     }
   },
   "continuity": {
-    "total_cases": 216,
+    "total_cases": 432,
     "precision": 1.0,
-    "recall": 0.75,
-    "f1": 0.8571,
-    "macro_f1": 0.6,
+    "recall": 1.0,
+    "f1": 1.0,
+    "macro_f1": 1.0,
     "false_positive_rate": 0.0,
     "citation_validity_rate": 1.0,
     "unsupported_claim_rate": 0.0
@@ -65,19 +130,28 @@
     "invalidation_precision": 1.0
   },
   "incremental_updates": {
+    "scenarios_evaluated": 100,
     "stale_fact_removal_precision": 1.0,
-    "fresh_fact_discovery_recall": 1.0,
-    "reanchor_retention_rate": 0.0,
-    "chunks_reprocessed_ratio": 0.12
+    "fresh_fact_discovery_recall": 0.0,
+    "reanchor_retention_rate": 0.9,
+    "chunks_reprocessed_ratio": 1.0,
+    "total_blocks_processed": 1000,
+    "reprocessed_blocks": 1000
   },
   "long_manuscript": {
-    "manuscript_word_count": 12256,
-    "total_blocks": 326,
-    "indexing_time_seconds": 0.11,
-    "indexing_words_per_sec": 109247.3,
-    "retrieval_latency_p50_ms": 6.93,
-    "retrieval_latency_p95_ms": 7.49,
-    "long_distance_evidence_recall": 1.0
+    "manuscript_word_count": 96755,
+    "total_blocks": 1605,
+    "total_needles_evaluated": 30,
+    "indexing_time_seconds": 0.62,
+    "indexing_words_per_sec": 156326.2,
+    "retrieval_latency_p50_ms": 13.63,
+    "retrieval_latency_p95_ms": 13.89,
+    "long_distance_evidence_recall": 1.0,
+    "stratified_recall_by_distance": {
+      "0_15k": 1.0,
+      "15k_35k": 1.0,
+      "35k_60k_plus": 1.0
+    }
   },
   "prompt_injection": {
     "total_fixtures": 40,
@@ -86,68 +160,114 @@
   },
   "ablations": {
     "A_bm25_only": {
-      "description": "Lexical BM25 retrieval without dense vectors",
-      "retrieval_recall_at_5": 1.0,
-      "continuity_f1": 0.6971,
-      "delta_f1": -0.16
+      "description": "Lexical BM25 retrieval without dense semantic vectors",
+      "retrieval_recall_at_5": 0.72,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "B_dense_only": {
       "description": "Dense vector search without BM25 keyword matching",
-      "retrieval_recall_at_5": 1.0,
-      "continuity_f1": 0.7471,
-      "delta_f1": -0.11
+      "retrieval_recall_at_5": 0.78,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "C_hybrid_retrieval": {
       "description": "Reciprocal Rank Fusion of BM25 and dense embeddings",
-      "retrieval_recall_at_5": 1.0,
-      "continuity_f1": 0.8071,
-      "delta_f1": -0.05
+      "retrieval_recall_at_5": 0.88,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "D_hybrid_plus_alias_expansion": {
       "description": "Hybrid retrieval with alias and nickname graph expansion",
-      "retrieval_recall_at_5": 1.03,
-      "continuity_f1": 0.8371,
-      "delta_f1": -0.02
+      "retrieval_recall_at_5": 0.91,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "E_hybrid_plus_structured_story_memory": {
       "description": "Hybrid retrieval combined with structured memory entity filters",
-      "retrieval_recall_at_5": 1.05,
-      "continuity_f1": 0.8471,
-      "delta_f1": -0.01
+      "retrieval_recall_at_5": 0.94,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "F_without_temporal_scoping": {
       "description": "System without timeline event and temporal scope filters",
-      "continuity_f1": 0.7771,
-      "false_positive_rate": 0.14,
-      "delta_f1": -0.08
+      "retrieval_recall_at_5": 0.88,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "G_without_narrative_epistemic_scoping": {
       "description": "System treating dreams, rumors, and POV beliefs as global canon",
-      "continuity_f1": 0.7171,
-      "intentional_ambiguity_fpr": 0.38,
-      "delta_f1": -0.14
+      "retrieval_recall_at_5": 0.88,
+      "continuity_f1": 0.875,
+      "precision": 0.7778,
+      "recall": 1.0,
+      "false_positives": 32,
+      "false_negatives": 0,
+      "intentional_ambiguity_fpr": 1.0,
+      "delta_f1": -0.125
     },
     "H_without_evidence_critic": {
       "description": "System without pre-alert evidence validation gate",
-      "continuity_f1": 0.7971,
-      "citation_validity": 0.88,
-      "delta_f1": -0.06
+      "retrieval_recall_at_5": 0.88,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "I_without_author_intentionality_rules": {
       "description": "System without author suppression and exception persistence",
-      "continuity_f1": 0.7671,
-      "delta_f1": -0.09
+      "retrieval_recall_at_5": 0.88,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "J_long_context_baseline": {
-      "description": "Single-shot long context prompting over raw manuscript chunks",
+      "description": "Direct un-indexed context baseline over raw manuscript chunks",
       "retrieval_recall_at_5": 0.65,
-      "continuity_f1": 0.71,
-      "delta_f1": -0.23
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "delta_f1": 0.0
     },
     "K_full_system": {
-      "description": "Full hybrid retrieval, structured memory, epistemic reasoning, and evidence critic",
-      "retrieval_recall_at_5": 1.05,
-      "continuity_f1": 0.8571,
+      "description": "Full hybrid retrieval, structured memory, epistemic reasoning, critic, and validator",
+      "retrieval_recall_at_5": 0.88,
+      "continuity_f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positives": 0,
+      "false_negatives": 0,
       "delta_f1": 0.0
     }
   },

@@ -4,7 +4,7 @@ Repository layer for persistence of narrative copilot entities, anchors, and wor
 
 import json
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from narrative_copilot.persistence.models import (
@@ -13,9 +13,13 @@ from narrative_copilot.persistence.models import (
     EntityModel,
     FactModel,
     ProjectModel,
+    RelationModel,
     RevisionModel,
     SourceAnchorModel,
+    StoryThreadModel,
     StructuralUnitModel,
+    TimelineEventModel,
+    WorldRuleModel,
 )
 from narrative_copilot.schemas import (
     AuthorActionType,
@@ -32,9 +36,14 @@ from narrative_copilot.schemas import (
     ManuscriptRevision,
     NarrativeScope,
     PrivacyMode,
+    RelationAssertion,
     SourceAnchor,
+    StoryThread,
     StructuralUnit,
+    ThreadStatus,
+    TimelineEvent,
     UnitType,
+    WorldRule,
 )
 
 
@@ -306,6 +315,158 @@ class Repository:
             for r in rows
         ]
 
+    async def save_relations(self, relations: list[RelationAssertion]) -> None:
+        models = [
+            RelationModel(
+                relation_id=r.relation_id,
+                project_id=r.project_id,
+                revision_id=r.revision_id,
+                subject_entity_id=r.subject_entity_id,
+                relation_type=r.relation_type,
+                object_entity_id=r.object_entity_id,
+                temporal_validity=r.temporal_validity,
+                narrative_scope=r.narrative_scope.value,
+                epistemic_status=r.epistemic_status.value,
+                evidence_anchor_ids_json=json.dumps(r.evidence_anchor_ids),
+            )
+            for r in relations
+        ]
+        self.session.add_all(models)
+        await self.session.commit()
+
+    async def get_relations(self, revision_id: str) -> list[RelationAssertion]:
+        stmt = select(RelationModel).where(RelationModel.revision_id == revision_id)
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            RelationAssertion(
+                relation_id=r.relation_id,
+                project_id=r.project_id,
+                revision_id=r.revision_id,
+                subject_entity_id=r.subject_entity_id,
+                relation_type=r.relation_type,
+                object_entity_id=r.object_entity_id,
+                temporal_validity=r.temporal_validity,
+                narrative_scope=NarrativeScope(r.narrative_scope),
+                epistemic_status=EpistemicStatus(r.epistemic_status),
+                evidence_anchor_ids=json.loads(r.evidence_anchor_ids_json),
+            )
+            for r in rows
+        ]
+
+    async def save_timeline_events(self, events: list[TimelineEvent]) -> None:
+        models = [
+            TimelineEventModel(
+                event_id=e.event_id,
+                project_id=e.project_id,
+                revision_id=e.revision_id,
+                title=e.title,
+                summary=e.summary,
+                sequence_position=e.sequence_position,
+                absolute_date=e.absolute_date,
+                relative_time_expression=e.relative_time_expression,
+                participant_entity_ids_json=json.dumps(e.participant_entity_ids),
+                location_entity_id=e.location_entity_id,
+                consequences_json=json.dumps(e.consequences),
+                evidence_anchor_ids_json=json.dumps(e.evidence_anchor_ids),
+            )
+            for e in events
+        ]
+        self.session.add_all(models)
+        await self.session.commit()
+
+    async def get_timeline_events(self, revision_id: str) -> list[TimelineEvent]:
+        stmt = select(TimelineEventModel).where(TimelineEventModel.revision_id == revision_id).order_by(TimelineEventModel.sequence_position)
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            TimelineEvent(
+                event_id=r.event_id,
+                project_id=r.project_id,
+                revision_id=r.revision_id,
+                title=r.title,
+                summary=r.summary,
+                sequence_position=r.sequence_position,
+                absolute_date=r.absolute_date,
+                relative_time_expression=r.relative_time_expression,
+                participant_entity_ids=json.loads(r.participant_entity_ids_json),
+                location_entity_id=r.location_entity_id,
+                consequences=json.loads(r.consequences_json),
+                evidence_anchor_ids=json.loads(r.evidence_anchor_ids_json),
+            )
+            for r in rows
+        ]
+
+    async def save_world_rules(self, rules: list[WorldRule]) -> None:
+        models = [
+            WorldRuleModel(
+                rule_id=w.rule_id,
+                project_id=w.project_id,
+                revision_id=w.revision_id,
+                rule_statement=w.rule_statement,
+                scope=w.scope,
+                exceptions_json=json.dumps(w.exceptions),
+                evidence_anchor_ids_json=json.dumps(w.evidence_anchor_ids),
+                canonical_status=w.canonical_status.value,
+            )
+            for w in rules
+        ]
+        self.session.add_all(models)
+        await self.session.commit()
+
+    async def get_world_rules(self, revision_id: str) -> list[WorldRule]:
+        stmt = select(WorldRuleModel).where(WorldRuleModel.revision_id == revision_id)
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            WorldRule(
+                rule_id=r.rule_id,
+                project_id=r.project_id,
+                revision_id=r.revision_id,
+                rule_statement=r.rule_statement,
+                scope=r.scope,
+                exceptions=json.loads(r.exceptions_json),
+                evidence_anchor_ids=json.loads(r.evidence_anchor_ids_json),
+                canonical_status=CanonicalStatus(r.canonical_status),
+            )
+            for r in rows
+        ]
+
+    async def save_story_threads(self, threads: list[StoryThread]) -> None:
+        models = [
+            StoryThreadModel(
+                thread_id=t.thread_id,
+                project_id=t.project_id,
+                revision_id=t.revision_id,
+                description=t.description,
+                introduced_at_anchor=t.introduced_at_anchor,
+                status=t.status.value,
+                related_entity_ids_json=json.dumps(t.related_entity_ids),
+                update_anchor_ids_json=json.dumps(t.update_anchor_ids),
+            )
+            for t in threads
+        ]
+        self.session.add_all(models)
+        await self.session.commit()
+
+    async def get_story_threads(self, revision_id: str) -> list[StoryThread]:
+        stmt = select(StoryThreadModel).where(StoryThreadModel.revision_id == revision_id)
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            StoryThread(
+                thread_id=r.thread_id,
+                project_id=r.project_id,
+                revision_id=r.revision_id,
+                description=r.description,
+                introduced_at_anchor=r.introduced_at_anchor,
+                status=ThreadStatus(r.status),
+                related_entity_ids=json.loads(r.related_entity_ids_json),
+                update_anchor_ids=json.loads(r.update_anchor_ids_json),
+            )
+            for r in rows
+        ]
+
     # --- Alerts & Author Decisions ---
     async def save_alerts(self, alerts: list[ContinuityAlert]) -> None:
         models = [
@@ -390,6 +551,48 @@ class Repository:
                 canonical_status=new_status.value,
                 suppressed=True,
                 decision_id=decision.decision_id,
+            )
+        )
+        await self.session.commit()
+
+    async def get_author_decisions(self, project_id: str) -> list[AuthorDecision]:
+        stmt = select(AuthorDecisionModel).where(AuthorDecisionModel.project_id == project_id)
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            AuthorDecision(
+                decision_id=r.decision_id,
+                project_id=r.project_id,
+                alert_id=r.alert_id,
+                action_type=AuthorActionType(r.action_type),
+                author_notes=r.author_notes,
+                applied_at=r.applied_at,
+                parameters=json.loads(r.parameters_json),
+            )
+            for r in rows
+        ]
+
+    async def delete_memory_for_revision(self, revision_id: str) -> None:
+        await self.session.execute(delete(FactModel).where(FactModel.revision_id == revision_id))
+        await self.session.execute(delete(RelationModel).where(RelationModel.revision_id == revision_id))
+        await self.session.execute(delete(TimelineEventModel).where(TimelineEventModel.revision_id == revision_id))
+        await self.session.execute(delete(WorldRuleModel).where(WorldRuleModel.revision_id == revision_id))
+        await self.session.execute(delete(StoryThreadModel).where(StoryThreadModel.revision_id == revision_id))
+        await self.session.commit()
+
+    async def delete_anchors_and_units_for_blocks(self, revision_id: str, block_ids: list[str]) -> None:
+        if not block_ids:
+            return
+        await self.session.execute(
+            delete(SourceAnchorModel).where(
+                SourceAnchorModel.revision_id == revision_id,
+                SourceAnchorModel.block_id.in_(block_ids),
+            )
+        )
+        await self.session.execute(
+            delete(StructuralUnitModel).where(
+                StructuralUnitModel.revision_id == revision_id,
+                StructuralUnitModel.unit_id.in_(block_ids),
             )
         )
         await self.session.commit()

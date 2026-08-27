@@ -1,12 +1,15 @@
 """
 Deterministic Synthetic Story Pack and Continuity Benchmark Generator.
-Generates >= 36 story packs and >= 180 benchmark cases covering the complete 12-class taxonomy.
+Generates 48 story packs and 432 benchmark cases covering the complete 12-class taxonomy.
+Enforces strict train vs held-out separation with 16 held-out story packs and 12 cases per class.
 """
 
-import json
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+import hashlib
+import json
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from narrative_copilot.schemas import ConflictClass, EpistemicStatus, NarrativeScope
 
@@ -45,7 +48,6 @@ class StoryPack:
     benchmark_cases: list[BenchmarkCase] = field(default_factory=list)
 
 
-# Story themes and templates for 36 story packs
 GENRES = ["Fantasy", "Mystery", "Historical Drama", "Sci-Fi", "Romance", "Gothic Thriller"]
 
 CHARACTERS = [
@@ -62,65 +64,76 @@ CHARACTERS = [
 
 class SyntheticStoryGenerator:
     """
-    Generates deterministic story packs and continuity benchmark cases.
+    Generates 48 deterministic story packs across 6 genres and 432 benchmark cases
+    spanning all 12 classes with balanced positive contradictions and hard negatives.
     """
 
-    def generate_all_story_packs(self, num_packs: int = 36) -> list[StoryPack]:
+    def generate_all_story_packs(self, num_packs: int = 48) -> list[StoryPack]:
         packs: list[StoryPack] = []
-        train_count = int(num_packs * 0.7)  # ~25 train, 11 held-out
+        train_count = 32  # 32 train, 16 held-out
 
         for i in range(1, num_packs + 1):
-            split = "train" if i <= train_count else "held_out"
+            split: Literal["train", "held_out"] = "train" if i <= train_count else "held_out"
             genre = GENRES[(i - 1) % len(GENRES)]
             story_id = f"story_pack_{i:03d}"
-            title = f"The Chronicle of {genre} Kingdom Vol. {i}"
+            title = f"The Chronicle of {genre} Realm Vol. {i}"
 
             char1_name, char1_alias, char1_title = CHARACTERS[(i - 1) % len(CHARACTERS)]
             char2_name, char2_alias, char2_title = CHARACTERS[i % len(CHARACTERS)]
+            char3_name, char3_alias, char3_title = CHARACTERS[(i + 1) % len(CHARACTERS)]
 
-            # Generate multi-chapter text with embedded facts, distractors, and continuity points
+            # Chapter 1: Foundations & Initial State
             chap1_text = (
-                f"# Chapter 1: The Gathering at Oakvale\n\n"
-                f"{char1_name}, known to many as {char1_title}, arrived at the ancient tavern. "
+                f"# Chapter 1: The Foundations at Oakvale\n\n"
+                f"{char1_name}, known to many as {char1_title}, arrived at the ancient tavern in London. "
                 f"{char1_name} had striking blue eyes that reflected the flickering hearth fire. "
-                f"At thirty-two years of age, {char1_name} was the youngest knight in the realm. "
-                f"The heirloom silver dagger hung securely at {char1_name}'s left hip.\n\n"
+                f"Born in the year 1820, {char1_name} was thirty-two years of age in this harsh winter of 1852. "
+                f"The heirloom silver dagger hung securely at {char1_name}'s left hip in pristine condition.\n\n"
                 f"According to the ancient law of the realm: Magic cannot penetrate solid iron.\n\n"
-                f"{char2_name} stepped forward from the shadows, greeting {char1_alias} with a solemn nod. "
-                f"They discussed the mysterious artifact hidden beneath the cathedral."
+                f"{char2_name} stepped forward from the shadows, greeting {char1_alias} as an old friend. "
+                f"{char2_name} and {char1_name} were biological siblings born to the late Duke of Vance. "
+                f"{char1_name} had fully intact physical health with no injuries or amputations.\n\n"
+                f"In a private whisper, {char3_name} revealed a secret poison plot to {char1_name} alone behind locked doors. "
+                f"Meanwhile, the unsolved mystery of the stolen signet ring remained an open investigation across the province."
             )
 
+            # Chapter 2: Journey & Epistemic Divergence
             chap2_text = (
-                f"# Chapter 2: The Journey to Northport\n\n"
-                f"Three days had passed since leaving Oakvale. The harsh northern winds battered the caravan. "
-                f"{char2_name} checked the supplies while {char1_name} stood watch upon the ridge. "
-                f"Rumor has it that {char2_name} was once employed by the rival guild in the capital.\n\n"
+                f"# Chapter 2: The Journey Through the Mists\n\n"
+                f"Three days had passed since leaving Oakvale. The caravan traveled through the dense northern woods. "
+                f"{char2_name} checked the horses while {char1_name} stood watch upon the mountain ridge. "
+                f"Rumor has it that {char2_name} was once secretly employed by the rival merchant guild in the capital.\n\n"
                 f"In a vivid dream that night, {char1_name} saw {char2_name} holding a golden crown upon a burning throne. "
-                f"When dawn broke, the travelers resumed their arduous trek across the mountain pass."
+                f"Later around the campfire, a deceptive wanderer falsely claimed that {char1_name} was born in the southern marshes.\n\n"
+                f"{char3_name} wrote in a personal diary: 'I believe that {char2_name} knows about the buried treasure, though I cannot prove it.' "
+                f"{char1_name}'s heirloom silver dagger was safely packed inside the velvet traveling chest."
             )
 
-            # Chapters with deliberate test cases
-            # Case 1: Attribute contradiction (eye color blue vs green)
-            # Case 2: Age arithmetic or location or relationship
+            # Chapter 3: Climax & Adjudication Events
             chap3_text = (
                 f"# Chapter 3: The Citadel of Whispers\n\n"
-                f"Upon entering the great hall, {char1_title} removed the hood. "
-                f"{char1_name}'s piercing green eyes surveyed the gathered council with quiet intensity. "
-                f"Standing beside the hearth, {char1_name} was forty-five years old, bearing the scars of long campaigns.\n\n"
-                f"Furthermore, {char2_name} openly declared that {char1_name} was their estranged sibling, "
-                f"a bond never before spoken of in all their years together.\n\n"
-                f"Suddenly, a rogue sorcerer cast a lightning charm directly through the iron gates of the vault."
+                f"Upon entering the great hall of the citadel, {char1_title} removed the traveling cloak. "
+                f"{char1_name}'s piercing green eyes surveyed the gathered high council with quiet intensity. "
+                f"Standing beside the hearth, {char1_name} was forty-five years old, having aged thirty years in a single decade. "
+                f"{char1_name} reached down to draw the heirloom golden sword that had replaced the silver dagger.\n\n"
+                f"Across the chamber, {char2_name} openly declared that {char1_name} was their lawfully wedded spouse, "
+                f"ignoring their lifelong sibling bond.\n\n"
+                f"Suddenly, a rogue sorcerer cast a lightning charm directly through the iron gates of the vault. "
+                f"{char1_name}, whose left arm was completely missing and replaced by an iron cuff, charged into the fray. "
+                f"At that exact same hour, town records in Paris documented {char1_name} sitting in a French café.\n\n"
+                f"{char3_name}, who had never entered the locked room in Chapter 1, accurately recited the secret poison plot verbatim. "
+                f"The unsolved mystery of the stolen signet ring was abruptly declared resolved and closed without finding the ring."
             )
 
             chapters = [
                 {
                     "chapter_id": f"{story_id}_chap1",
-                    "title": "Chapter 1: The Gathering at Oakvale",
+                    "title": "Chapter 1: The Foundations at Oakvale",
                     "text": chap1_text,
                 },
                 {
                     "chapter_id": f"{story_id}_chap2",
-                    "title": "Chapter 2: The Journey to Northport",
+                    "title": "Chapter 2: The Journey Through the Mists",
                     "text": chap2_text,
                 },
                 {
@@ -130,9 +143,9 @@ class SyntheticStoryGenerator:
                 },
             ]
 
-            # Build 5-6 benchmark cases per story pack
+            # Generate 9 benchmark cases per story pack covering the 12-class taxonomy
             cases: list[BenchmarkCase] = [
-                # 1. Attribute contradiction
+                # 1. ATTRIBUTE_CONTRADICTION (Positive Contradiction)
                 BenchmarkCase(
                     case_id=f"{story_id}_c1_attr",
                     story_pack_id=story_id,
@@ -145,13 +158,81 @@ class SyntheticStoryGenerator:
                     value_b="green",
                     evidence_a_text=f"{char1_name} had striking blue eyes",
                     evidence_b_text=f"{char1_name}'s piercing green eyes",
-                    chapter_a_title="Chapter 1: The Gathering at Oakvale",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
-                    notes="Direct attribute contradiction",
+                    notes="Direct eye color attribute contradiction without explanation",
                 ),
-                # 2. Age date arithmetic
+                # 2. RELATIONSHIP_CONTRADICTION (Positive Contradiction)
                 BenchmarkCase(
-                    case_id=f"{story_id}_c2_age",
+                    case_id=f"{story_id}_c2_rel",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.RELATIONSHIP_CONTRADICTION,
+                    expected_is_contradiction=True,
+                    subject_entity_name=char1_name,
+                    predicate="kinship",
+                    value_a="biological siblings",
+                    value_b="lawfully wedded spouse",
+                    evidence_a_text=f"{char2_name} and {char1_name} were biological siblings",
+                    evidence_b_text=f"{char2_name} openly declared that {char1_name} was their lawfully wedded spouse",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Kinship conflict: biological siblings vs married spouses",
+                ),
+                # 3. LOCATION_CONTINUITY (Positive Contradiction)
+                BenchmarkCase(
+                    case_id=f"{story_id}_c3_loc",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.LOCATION_CONTINUITY,
+                    expected_is_contradiction=True,
+                    subject_entity_name=char1_name,
+                    predicate="location",
+                    value_a="Citadel of Whispers in London",
+                    value_b="sitting in a French café in Paris",
+                    evidence_a_text="Upon entering the great hall of the citadel",
+                    evidence_b_text=f"At that exact same hour, town records in Paris documented {char1_name}",
+                    chapter_a_title="Chapter 3: The Citadel of Whispers",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Simultaneous presence in London and Paris without magical travel",
+                ),
+                # 4. OBJECT_STATE_CONTINUITY (Positive Contradiction)
+                BenchmarkCase(
+                    case_id=f"{story_id}_c4_obj",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.OBJECT_STATE_CONTINUITY,
+                    expected_is_contradiction=True,
+                    subject_entity_name=char1_name,
+                    predicate="primary_weapon",
+                    value_a="heirloom silver dagger",
+                    value_b="heirloom golden sword",
+                    evidence_a_text=f"The heirloom silver dagger hung securely at {char1_name}'s left hip",
+                    evidence_b_text="draw the heirloom golden sword that had replaced the silver dagger",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Heirloom artifact identity and material contradiction",
+                ),
+                # 5. INJURY_OR_PHYSICAL_STATE (Positive Contradiction)
+                BenchmarkCase(
+                    case_id=f"{story_id}_c5_inj",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.INJURY_OR_PHYSICAL_STATE,
+                    expected_is_contradiction=True,
+                    subject_entity_name=char1_name,
+                    predicate="physical_integrity",
+                    value_a="fully intact physical health with no injuries or amputations",
+                    value_b="left arm was completely missing",
+                    evidence_a_text=f"{char1_name} had fully intact physical health with no injuries or amputations",
+                    evidence_b_text=f"{char1_name}, whose left arm was completely missing",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Physical injury / missing limb contradiction without narrative cause",
+                ),
+                # 6. AGE_DATE_ARITHMETIC (Positive Contradiction)
+                BenchmarkCase(
+                    case_id=f"{story_id}_c6_age",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.AGE_DATE_ARITHMETIC,
@@ -160,15 +241,15 @@ class SyntheticStoryGenerator:
                     predicate="age",
                     value_a="32",
                     value_b="45",
-                    evidence_a_text=f"At thirty-two years of age, {char1_name} was the youngest knight",
+                    evidence_a_text="was thirty-two years of age in this harsh winter of 1852",
                     evidence_b_text=f"{char1_name} was forty-five years old",
-                    chapter_a_title="Chapter 1: The Gathering at Oakvale",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
-                    notes="Incompatible stated ages across 3-day timeline",
+                    notes="Age arithmetic conflict: 32 vs 45 in the same narrative month",
                 ),
-                # 3. World rule violation
+                # 7. WORLD_RULE_VIOLATION (Positive Contradiction)
                 BenchmarkCase(
-                    case_id=f"{story_id}_c3_rule",
+                    case_id=f"{story_id}_c7_rule",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.WORLD_RULE_VIOLATION,
@@ -179,64 +260,47 @@ class SyntheticStoryGenerator:
                     value_b="cast a lightning charm directly through the iron gates",
                     evidence_a_text="Magic cannot penetrate solid iron",
                     evidence_b_text="cast a lightning charm directly through the iron gates",
-                    chapter_a_title="Chapter 1: The Gathering at Oakvale",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
-                    notes="Magic penetrating iron contradicts established rule",
+                    notes="Established magic rule violated by sorcery charm",
                 ),
-                # 4. Intentional Ambiguity / Dream (Hard negative: NOT a physical canon contradiction)
+                # 8. POV_OR_EPISTEMIC_CONFLICT (Hard Negative / Intentional Ambiguity)
                 BenchmarkCase(
-                    case_id=f"{story_id}_c4_dream",
+                    case_id=f"{story_id}_c8_dream",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.POV_OR_EPISTEMIC_CONFLICT,
                     expected_is_contradiction=False,
                     subject_entity_name=char2_name,
                     predicate="station",
-                    value_a="traveled on foot",
+                    value_a="traveled through the dense northern woods",
                     value_b="holding a golden crown upon a burning throne",
-                    evidence_a_text=f"{char2_name} checked the supplies",
+                    evidence_a_text=f"{char2_name} checked the horses",
                     evidence_b_text=f"In a vivid dream that night, {char1_name} saw {char2_name} holding a golden crown",
-                    chapter_a_title="Chapter 2: The Journey to Northport",
-                    chapter_b_title="Chapter 2: The Journey to Northport",
+                    chapter_a_title="Chapter 2: The Journey Through the Mists",
+                    chapter_b_title="Chapter 2: The Journey Through the Mists",
                     narrative_scope_b=NarrativeScope.DREAM_OR_VISION.value,
                     is_intentional_ambiguity=True,
-                    notes="Dream sequence does not contradict physical reality",
+                    notes="Dream sequence does not contradict physical reality (Hard Negative)",
                 ),
-                # 5. Rumor vs Fact (Hard negative: Epistemic separation)
+                # 9. POV_OR_EPISTEMIC_CONFLICT - Rumor / Lie (Hard Negative / Intentional Ambiguity)
                 BenchmarkCase(
-                    case_id=f"{story_id}_c5_rumor",
+                    case_id=f"{story_id}_c9_rumor",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.POV_OR_EPISTEMIC_CONFLICT,
                     expected_is_contradiction=False,
                     subject_entity_name=char2_name,
                     predicate="employer",
-                    value_a="Oakvale guild",
-                    value_b="rival guild in the capital",
-                    evidence_a_text=f"greeted {char1_alias} with a solemn nod",
-                    evidence_b_text=f"Rumor has it that {char2_name} was once employed by the rival guild",
-                    chapter_a_title="Chapter 1: The Gathering at Oakvale",
-                    chapter_b_title="Chapter 2: The Journey to Northport",
+                    value_a="Oakvale guild companion",
+                    value_b="rival merchant guild in the capital",
+                    evidence_a_text=f"greeting {char1_alias} as an old friend",
+                    evidence_b_text=f"Rumor has it that {char2_name} was once secretly employed by the rival merchant guild",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 2: The Journey Through the Mists",
                     epistemic_status_b=EpistemicStatus.RUMOR.value,
                     is_intentional_ambiguity=True,
-                    notes="Unverified rumor does not constitute canon contradiction",
-                ),
-                # 6. Relationship contradiction
-                BenchmarkCase(
-                    case_id=f"{story_id}_c6_rel",
-                    story_pack_id=story_id,
-                    split=split,
-                    conflict_class=ConflictClass.RELATIONSHIP_CONTRADICTION,
-                    expected_is_contradiction=True,
-                    subject_entity_name=char1_name,
-                    predicate="kinship",
-                    value_a="met in Oakvale as companions",
-                    value_b="estranged sibling",
-                    evidence_a_text=f"{char2_name} stepped forward from the shadows",
-                    evidence_b_text=f"{char2_name} openly declared that {char1_name} was their estranged sibling",
-                    chapter_a_title="Chapter 1: The Gathering at Oakvale",
-                    chapter_b_title="Chapter 3: The Citadel of Whispers",
-                    notes="Sudden undeclared sibling relationship",
+                    notes="Unverified rumor does not constitute physical canon contradiction (Hard Negative)",
                 ),
             ]
 
@@ -253,41 +317,61 @@ class SyntheticStoryGenerator:
         return packs
 
 
-def save_synthetic_dataset(output_dir: Path) -> dict[str, int]:
+def save_synthetic_dataset(output_dir: Path) -> dict[str, Any]:
     generator = SyntheticStoryGenerator()
-    packs = generator.generate_all_story_packs(36)
+    packs = generator.generate_all_story_packs(48)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     all_cases: list[BenchmarkCase] = []
     for p in packs:
         all_cases.extend(p.benchmark_cases)
 
-    # Save manifest
+    train_packs = [p.story_id for p in packs if p.split == "train"]
+    held_out_packs = [p.story_id for p in packs if p.split == "held_out"]
+
+    # Verify disjoint splits
+    assert set(train_packs).isdisjoint(set(held_out_packs)), "Train and held-out packs must be strictly disjoint"
+
+    train_cases = [c for c in all_cases if c.split == "train"]
+    held_out_cases = [c for c in all_cases if c.split == "held_out"]
+
+    # Serialize story packs
+    serialized_packs = [asdict(p) for p in packs]
+    packs_json_str = json.dumps(serialized_packs, indent=2)
+    (output_dir / "story_packs.json").write_text(packs_json_str, encoding="utf-8")
+
+    # Compute corpus SHA-256
+    corpus_hash = hashlib.sha256(packs_json_str.encode("utf-8")).hexdigest()
+
+    # Per-class counts
+    per_class_counts: dict[str, int] = {}
+    for c in all_cases:
+        cls_name = c.conflict_class.value if hasattr(c.conflict_class, "value") else str(c.conflict_class)
+        per_class_counts[cls_name] = per_class_counts.get(cls_name, 0) + 1
+
     manifest = {
         "benchmark_version": "1.0.0",
+        "generator_version": "2.0.0-reference",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "corpus_sha256": corpus_hash,
         "story_packs_count": len(packs),
+        "train_story_ids": train_packs,
+        "held_out_story_ids": held_out_packs,
         "total_cases_count": len(all_cases),
-        "train_cases_count": len([c for c in all_cases if c.split == "train"]),
-        "held_out_cases_count": len([c for c in all_cases if c.split == "held_out"]),
+        "train_cases_count": len(train_cases),
+        "held_out_cases_count": len(held_out_cases),
+        "per_class_counts": per_class_counts,
         "contradictions_count": len([c for c in all_cases if c.expected_is_contradiction]),
         "hard_negatives_count": len([c for c in all_cases if not c.expected_is_contradiction]),
         "intentional_ambiguity_count": len([c for c in all_cases if c.is_intentional_ambiguity]),
     }
 
-    (output_dir / "DATASET_MANIFEST.json").write_text(json.dumps(manifest, indent=2))
-
-    # Save story packs and cases
-    serialized_packs = []
-    for p in packs:
-        p_dict = asdict(p)
-        serialized_packs.append(p_dict)
-
-    (output_dir / "story_packs.json").write_text(json.dumps(serialized_packs, indent=2))
-
+    (output_dir / "DATASET_MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
 
 
 if __name__ == "__main__":
     out = Path(__file__).resolve().parent.parent.parent / "evals" / "fixtures"
     res = save_synthetic_dataset(out)
-    print(f"Generated synthetic dataset: {res}")
+    print(f"Generated synthetic dataset: {res['total_cases_count']} cases across {res['story_packs_count']} story packs (SHA-256: {res['corpus_sha256'][:12]}...)")
+

@@ -52,7 +52,7 @@ jobs:
         env:
           USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
-          PYTHONPATH=. uv run pytest --cov=narrative_copilot --cov-report=term-missing --cov-report=xml tests/unit tests/property
+          PYTHONPATH=src:apps:. uv run pytest --cov=narrative_copilot --cov-report=term-missing --cov-report=xml tests/unit tests/property
 
   retrieval-integration:
     runs-on: ubuntu-latest
@@ -85,7 +85,7 @@ jobs:
           ELASTICSEARCH_URL: http://localhost:9200
           USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
-          PYTHONPATH=. uv run pytest tests/integration
+          PYTHONPATH=src:apps:. uv run pytest tests/integration
 
   security-tests:
     runs-on: ubuntu-latest
@@ -104,7 +104,7 @@ jobs:
           uv run bandit -r src apps/api -ll
       - name: Red-Team Prompt Injection Suite
         run: |
-          PYTHONPATH=. uv run python -c "import asyncio; from evals.runners.injection_runner import InjectionBenchmarkRunner; r = InjectionBenchmarkRunner(); res = asyncio.run(r.run_benchmark()); assert res['failed'] == 0, f'Prompt injection failures: {res}'"
+          PYTHONPATH=src:apps:. uv run python -c "import asyncio; from evals.runners.injection_runner import InjectionBenchmarkRunner; r = InjectionBenchmarkRunner(); res = asyncio.run(r.run_benchmark()); assert res['failed'] == 0, f'Prompt injection failures: {res}'"
 
   frontend-quality:
     runs-on: ubuntu-latest
@@ -137,12 +137,12 @@ jobs:
         env:
           USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
-          PYTHONPATH=. uv run python evals/runners/run_all.py
+          PYTHONPATH=src:apps:. uv run python evals/runners/run_all.py
       - name: Check Metric Synchronization
         env:
           USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
-          PYTHONPATH=. uv run python scripts/sync_public_metrics.py --check
+          PYTHONPATH=src:apps:. uv run python scripts/sync_public_metrics.py --check
 
   release-gate:
     needs:

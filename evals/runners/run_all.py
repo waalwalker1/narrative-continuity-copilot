@@ -11,6 +11,7 @@ from typing import Any
 from evals.runners.ablations_runner import AblationRunner
 from evals.runners.anchors_runner import AnchorBenchmarkRunner
 from evals.runners.continuity_runner import ContinuityEvaluator
+from evals.runners.incremental_runner import IncrementalBenchmarkRunner
 from evals.runners.injection_runner import InjectionBenchmarkRunner
 from evals.runners.long_manuscript_runner import LongManuscriptRunner
 from evals.runners.retrieval_runner import RetrievalEvaluator
@@ -26,42 +27,47 @@ async def main() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # 1. Dataset Generation
-    print("[1/7] Generating synthetic dataset (>=36 story packs, >=180 cases)...")
+    print("[1/8] Generating synthetic dataset (48 story packs, 432 cases across 12 classes)...")
     manifest = save_synthetic_dataset(FIXTURES_DIR)
     (ARTIFACTS_DIR / "DATASET_MANIFEST.json").write_text(json.dumps(manifest, indent=2))
 
     # 2. Retrieval Benchmark
-    print("[2/7] Running Retrieval Evaluation (BM25, Dense, Hybrid)...")
+    print("[2/8] Running Retrieval Evaluation (BM25, Dense, Hybrid)...")
     retrieval_runner = RetrievalEvaluator(FIXTURES_DIR)
     retrieval_metrics = await retrieval_runner.run_evaluation()
 
     # 3. Continuity Benchmark
-    print("[3/7] Running End-to-End Continuity Evaluation...")
+    print("[3/8] Running End-to-End Continuity Evaluation (16 Held-Out Packs, 12 Classes)...")
     continuity_runner = ContinuityEvaluator(FIXTURES_DIR)
     continuity_metrics = await continuity_runner.run_evaluation()
 
     # 4. Anchor Edit Benchmark
-    print("[4/7] Running Anchor Edit Stability Benchmark (>=200 operations)...")
+    print("[4/8] Running Anchor Edit Stability Benchmark (>=200 operations)...")
     anchor_runner = AnchorBenchmarkRunner()
     anchor_metrics = anchor_runner.run_benchmark(220)
 
-    # 5. Prompt Injection Security Benchmark
-    print("[5/7] Running Prompt Injection Security Suite (40 fixtures)...")
+    # 5. Incremental Indexing Benchmark
+    print("[5/8] Running Incremental Indexing Benchmark (100 scenarios)...")
+    inc_runner = IncrementalBenchmarkRunner()
+    inc_metrics = await inc_runner.run_benchmark(100)
+
+    # 6. Prompt Injection Security Benchmark
+    print("[6/8] Running Prompt Injection Security Suite (40 fixtures)...")
     injection_runner = InjectionBenchmarkRunner()
     injection_metrics = await injection_runner.run_benchmark()
     (ARTIFACTS_DIR / "PROMPT_INJECTION_CASES.json").write_text(
         json.dumps(injection_metrics["cases"], indent=2)
     )
 
-    # 6. Long Manuscript Stress Benchmark
-    print("[6/7] Running Long Manuscript Stress Benchmark (65k words)...")
+    # 7. Long Manuscript Stress Benchmark
+    print("[7/8] Running Long Manuscript Stress Benchmark (65k words, 30 needles)...")
     long_runner = LongManuscriptRunner()
     long_metrics = await long_runner.run_stress_test(65000)
 
-    # 7. Ablation Studies
-    print("[7/7] Computing Ablation Studies A through K...")
-    ablation_runner = AblationRunner()
-    ablation_metrics = ablation_runner.run_ablations(retrieval_metrics, continuity_metrics)
+    # 8. Ablation Studies
+    print("[8/8] Computing Ablation Studies A through K...")
+    ablation_runner = AblationRunner(FIXTURES_DIR)
+    ablation_metrics = await ablation_runner.run_all_ablations(retrieval_metrics, continuity_metrics)
 
     # Build summary.json
     summary = {
@@ -82,12 +88,7 @@ async def main() -> None:
             "intentional_ambiguity_fpr": continuity_metrics["intentional_ambiguity_fpr"],
         },
         "anchors": anchor_metrics,
-        "incremental_updates": {
-            "stale_fact_removal_precision": 1.0,
-            "fresh_fact_discovery_recall": 1.0,
-            "reanchor_retention_rate": anchor_metrics["retention_rate"],
-            "chunks_reprocessed_ratio": 0.12,
-        },
+        "incremental_updates": inc_metrics,
         "long_manuscript": long_metrics,
         "prompt_injection": {
             "total_fixtures": injection_metrics["total_fixtures"],
@@ -167,12 +168,16 @@ Retrieval performance measured across BM25 lexical, dense SentenceTransformers v
     # 3. CLASS_BREAKDOWN.md
     cb_lines = [
         "# Continuity Class Breakdown\n",
-        "| Conflict Class | Precision | Recall | F1 Score | Support |",
-        "|---|---|---|---|---|",
+        "| Conflict Class | TP | FP | TN | FN | Precision | Recall | F1 Score | Support |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for cname, stats in continuity["class_breakdown"].items():
+        tp = stats.get("tp", 0)
+        fp = stats.get("fp", 0)
+        tn = stats.get("tn", 0)
+        fn = stats.get("fn", 0)
         cb_lines.append(
-            f"| {cname} | {stats['precision']:.1%} | {stats['recall']:.1%} | {stats['f1']:.1%} | {stats['support']} |"
+            f"| {cname} | {tp} | {fp} | {tn} | {fn} | {stats['precision']:.1%} | {stats['recall']:.1%} | {stats['f1']:.1%} | {stats['support']} |"
         )
     (ARTIFACTS_DIR / "CLASS_BREAKDOWN.md").write_text("\n".join(cb_lines) + "\n")
 

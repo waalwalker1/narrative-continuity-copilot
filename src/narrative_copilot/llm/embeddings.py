@@ -39,16 +39,15 @@ class SentenceTransformerEmbeddingProvider:
 
     def _get_model(self) -> Any:
         if self._model is None:
-            if os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1":
+            mode = os.environ.get("EMBEDDING_MODE", "").lower().strip()
+            if mode == "deterministic_fixture" or os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1":
                 self._model = DeterministicEmbeddingStub(dimension=self._dimension)
                 return self._model
-            try:
-                from sentence_transformers import SentenceTransformer
 
-                self._model = SentenceTransformer(self._model_name, device="cpu")
-            except Exception:
-                # If network is unavailable or download fails, fallback to local stub
-                self._model = DeterministicEmbeddingStub(dimension=self._dimension)
+            # Full reference mode: load genuine SentenceTransformer
+            from sentence_transformers import SentenceTransformer
+
+            self._model = SentenceTransformer(self._model_name, device="cpu")
         return self._model
 
     def encode(self, texts: list[str]) -> list[list[float]]:

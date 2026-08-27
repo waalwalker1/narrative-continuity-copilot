@@ -27,40 +27,36 @@ class LongManuscriptRunner:
         """
         await self.es_engine.ensure_indices()
 
-        # Generate synthetic book text
+        # Generate synthetic book text with 30 gold needles
         chapters_md = []
-        words_per_chapter = 2500
-        num_chapters = (target_words // words_per_chapter) + 1
+        num_chapters = 35
 
-        # Needle 1: Chapter 1
-        needle_1 = (
-            "Lord Arthur Vance possessed a rare celestial amethyst ring on his left forefinger."
-        )
-        # Needle 2: Final Chapter
-        needle_2 = (
-            "Arthur examined his bare hands, noticing the celestial amethyst ring was shattered."
-        )
+        gold_needles: list[dict[str, Any]] = [
+            {"id": f"needle_{i:02d}", "query": f"Needle Item {i} Lord Vance", "phrase": f"sacred relic number {i} preserved in vault", "chapter": i}
+            for i in range(1, 31)
+        ]
 
         for c in range(1, num_chapters + 1):
-            chap_lines = [f"# Chapter {c}: Chronicle of the Realm Part {c}\n"]
-            if c == 1:
-                chap_lines.append(f"{needle_1}\n")
+            chap_lines = [f"# Chapter {c}: Chronicle of the Long Realm Part {c}\n"]
 
-            # Filler narrative paragraphs
-            for p in range(12):
+            # Insert gold needle if matching chapter
+            if c <= len(gold_needles):
+                needle_info = gold_needles[c - 1]
+                chap_lines.append(f"Lord Vance guarded the {needle_info['phrase']}.\n")
+
+            # Rich filler prose (45 paragraphs per chapter = ~2,000 words per chapter)
+            for p in range(45):
                 chap_lines.append(
-                    f"Paragraph {p}: The riders continued across the eastern valley. The wind whispered "
-                    f"through ancient pines as shadows lengthened across the stone towers of the fortress. "
-                    f"Provisions were counted, horses were watered, and the scouts reported quiet borders."
+                    f"Paragraph {p}: The travelers rode steadily through the northern pines of province {c}, observing the ancient stone watchtowers. "
+                    f"Scouts were dispatched to the eastern borders, river depths were sounded across the rapids, supplies of grain and salt were tallied in the logbooks, "
+                    f"and horses were carefully shoed by the regimental blacksmith before the harsh winter frost settled over the mountain pass."
                 )
-
-            if c == num_chapters:
-                chap_lines.append(f"\n{needle_2}\n")
 
             chapters_md.append("\n\n".join(chap_lines))
 
         full_text = "\n\n".join(chapters_md)
         actual_word_count = len(full_text.split())
+        assert actual_word_count >= 60000, f"Manuscript must be at least 60k words, got {actual_word_count}"
 
         # Measure indexing
         t0 = time.perf_counter()
@@ -95,13 +91,16 @@ class LongManuscriptRunner:
         await self.es_engine.index_chunks_bulk(docs)
         indexing_time_sec = time.perf_counter() - t0
 
-        # Measure retrieval latencies across 20 queries
+        # Measure retrieval across all 30 needles with distance stratification
         latencies: list[float] = []
-        recall_hits = 0
-        for _ in range(20):
+        bucket_hits: dict[str, int] = {"0_15k": 0, "15k_35k": 0, "35k_60k_plus": 0}
+        bucket_totals: dict[str, int] = {"0_15k": 0, "15k_35k": 0, "35k_60k_plus": 0}
+        total_hits = 0
+
+        for needle in gold_needles:
             q_t0 = time.perf_counter()
             query = RetrievalQuery(
-                query="Arthur Vance celestial amethyst ring",
+                query=needle["query"],
                 project_id="proj_long_stress",
                 revision_id="rev_long_1",
                 retrieval_mode=RetrievalMode.HYBRID_RRF,
@@ -110,20 +109,39 @@ class LongManuscriptRunner:
             res = await self.pipeline.search(query)
             latencies.append((time.perf_counter() - q_t0) * 1000.0)
 
+            # Determine distance bucket
+            chap_num = needle["chapter"]
+            if chap_num <= 7:
+                bucket = "0_15k"
+            elif chap_num <= 16:
+                bucket = "15k_35k"
+            else:
+                bucket = "35k_60k_plus"
+
+            bucket_totals[bucket] += 1
+
             # Check if needle retrieved
-            if any("amethyst ring" in item.text_snippet for item in res.results):
-                recall_hits += 1
+            if any(needle["phrase"] in item.text_snippet for item in res.results):
+                total_hits += 1
+                bucket_hits[bucket] += 1
 
         latencies.sort()
         p50 = latencies[len(latencies) // 2]
         p95 = latencies[int(len(latencies) * 0.95)]
 
+        stratified_recall = {
+            b: round(bucket_hits[b] / max(bucket_totals[b], 1), 4)
+            for b in bucket_totals
+        }
+
         return {
             "manuscript_word_count": actual_word_count,
             "total_blocks": len(block_units),
+            "total_needles_evaluated": len(gold_needles),
             "indexing_time_seconds": round(indexing_time_sec, 2),
             "indexing_words_per_sec": round(actual_word_count / max(indexing_time_sec, 0.01), 1),
             "retrieval_latency_p50_ms": round(p50, 2),
             "retrieval_latency_p95_ms": round(p95, 2),
-            "long_distance_evidence_recall": round(recall_hits / 20.0, 4),
+            "long_distance_evidence_recall": round(total_hits / max(len(gold_needles), 1), 4),
+            "stratified_recall_by_distance": stratified_recall,
         }

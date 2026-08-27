@@ -156,3 +156,62 @@ class IndexJobModel(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class RelationModel(Base):
+    __tablename__ = "relations"
+
+    relation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    revision_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    subject_entity_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    relation_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    object_entity_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    temporal_validity: Mapped[str] = mapped_column(String(64), default="GLOBAL")
+    narrative_scope: Mapped[str] = mapped_column(String(64), default="GLOBAL_CANON")
+    epistemic_status: Mapped[str] = mapped_column(String(64), default="OBSERVED")
+    evidence_anchor_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class TimelineEventModel(Base):
+    __tablename__ = "timeline_events"
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    revision_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    sequence_position: Mapped[int] = mapped_column(Integer, default=0)
+    absolute_date: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    relative_time_expression: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    participant_entity_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    location_entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    consequences_json: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_anchor_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class WorldRuleModel(Base):
+    __tablename__ = "world_rules"
+
+    rule_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    revision_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    rule_statement: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[str] = mapped_column(String(64), default="GLOBAL")
+    exceptions_json: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_anchor_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    canonical_status: Mapped[str] = mapped_column(String(32), default="AUTHOR_CONFIRMED")
+
+
+class StoryThreadModel(Base):
+    __tablename__ = "story_threads"
+
+    thread_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    revision_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    introduced_at_anchor: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="OPEN")
+    related_entity_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    update_anchor_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+

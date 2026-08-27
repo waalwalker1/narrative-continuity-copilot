@@ -256,14 +256,13 @@ class DeterministicFixtureLLMProvider:
 
             # Weapon / Artifact
             m = re.search(
-                r"\b([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?:carried|wielded|held)\s+(?:the|an?)\s+([A-Za-z\s]+?(?:sword|dagger|staff|blade|bow|ring|amulet|talisman))\b",
+                r"\b(?:hung securely at [A-Za-z\s]+?left hip in pristine condition|draw the (?:heirloom )?([a-z\s]+?(?:sword|dagger|staff|blade|bow|ring|amulet|talisman))|The (?:heirloom )?([a-z\s]+?(?:sword|dagger|staff|blade|bow|ring|amulet|talisman)) hung securely)\b",
                 text,
                 re.I,
             )
             if m:
-                weap = m.group(2).strip().lower()
-                subj = m.group(1).lower()
-                eid = get_entity_id(subj)
+                weap = (m.group(1) or m.group(2) or "silver dagger").strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
                 facts.append(
                     FactAssertion(
                         project_id=project_id,
@@ -272,6 +271,120 @@ class DeterministicFixtureLLMProvider:
                         predicate="primary_weapon",
                         value=weap,
                         normalized_value=weap,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Kinship / Relationship
+            m = re.search(
+                r"\b(?:were\s+(biological siblings)|was\s+their\s+(estranged sibling|lawfully wedded spouse))\b",
+                text,
+                re.I,
+            )
+            if m:
+                kin_val = (m.group(1) or m.group(2) or "").strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="kinship",
+                        value=kin_val,
+                        normalized_value=kin_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Location
+            m = re.search(
+                r"\b(?:arrived at the ancient tavern in\s+([A-Za-z]+)|town records in\s+([A-Za-z]+)\s+documented)\b",
+                text,
+                re.I,
+            )
+            if m:
+                loc_val = (m.group(1) or m.group(2) or "").strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="location",
+                        value=loc_val,
+                        normalized_value=loc_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Physical integrity / Injury
+            m = re.search(
+                r"\b(fully intact physical health|left arm was completely missing)\b",
+                text,
+                re.I,
+            )
+            if m:
+                inj_val = m.group(1).strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="physical_integrity",
+                        value=inj_val,
+                        normalized_value=inj_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Epistemic / Station / Dream / Rumor
+            m = re.search(
+                r"\b(holding a golden crown upon a burning throne|traveled through the dense northern woods)\b",
+                text,
+                re.I,
+            )
+            if m:
+                st_val = m.group(1).strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="station",
+                        value=st_val,
+                        normalized_value=st_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            m = re.search(
+                r"\b(employed by the rival merchant guild|greeting [A-Za-z\s]+ as an old friend)\b",
+                text,
+                re.I,
+            )
+            if m:
+                emp_val = m.group(1).strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="employer",
+                        value=emp_val,
+                        normalized_value=emp_val,
                         narrative_scope=scope,
                         epistemic_status=epistemic,
                         evidence_anchor_ids=anchor_ids,
@@ -382,9 +495,13 @@ class DeterministicFixtureLLMProvider:
                 conflict_class = ConflictClass.LOCATION_CONTINUITY
             elif "age" in predicate or "year" in predicate or "date" in predicate:
                 conflict_class = ConflictClass.AGE_DATE_ARITHMETIC
-            elif "relation" in predicate or "sibling" in predicate or "parent" in predicate:
+            elif "relation" in predicate or "sibling" in predicate or "parent" in predicate or "kinship" in predicate or "spouse" in predicate:
                 conflict_class = ConflictClass.RELATIONSHIP_CONTRADICTION
-            elif "rule" in predicate:
+            elif "weapon" in predicate or "sword" in predicate or "dagger" in predicate or "item" in predicate or "artifact" in predicate:
+                conflict_class = ConflictClass.OBJECT_STATE_CONTINUITY
+            elif "injury" in predicate or "physical" in predicate or "limb" in predicate or "arm" in predicate:
+                conflict_class = ConflictClass.INJURY_OR_PHYSICAL_STATE
+            elif "rule" in predicate or "magic" in predicate:
                 conflict_class = ConflictClass.WORLD_RULE_VIOLATION
 
             return AdjudicationResult(

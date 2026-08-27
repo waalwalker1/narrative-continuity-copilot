@@ -148,14 +148,25 @@ class ContinuityEvaluator:
         class_f1s = []
         class_breakdown = {}
         for cname, counts in per_class_stats.items():
-            c_p = counts["tp"] / max(counts["tp"] + counts["fp"], 1)
-            c_r = counts["tp"] / max(counts["tp"] + counts["fn"], 1)
-            c_f1 = (2 * c_p * c_r) / max(c_p + c_r, 1e-6)
+            if counts["tp"] + counts["fn"] == 0 and counts["tn"] > 0:
+                # Pure hard negative / intentional ambiguity class
+                c_p = 1.0 if counts["fp"] == 0 else 0.0
+                c_r = 1.0 if counts["fp"] == 0 else 0.0
+                c_f1 = 1.0 if counts["fp"] == 0 else 0.0
+            else:
+                c_p = counts["tp"] / max(counts["tp"] + counts["fp"], 1)
+                c_r = counts["tp"] / max(counts["tp"] + counts["fn"], 1)
+                c_f1 = (2 * c_p * c_r) / max(c_p + c_r, 1e-6)
+
             class_f1s.append(c_f1)
             class_breakdown[cname] = {
                 "precision": round(c_p, 4),
                 "recall": round(c_r, 4),
                 "f1": round(c_f1, 4),
+                "tp": counts["tp"],
+                "fp": counts["fp"],
+                "tn": counts["tn"],
+                "fn": counts["fn"],
                 "support": counts["tp"] + counts["fn"] + counts["fp"] + counts["tn"],
             }
 

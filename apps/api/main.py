@@ -305,6 +305,78 @@ async def create_revision(
     }
 
 
+@app.post("/api/v1/projects/{project_id}/revisions/from-edits")
+async def create_revision_from_scoped_edits(
+    project_id: str,
+    req: ScopedEditRequest,
+    repo: Repository = Depends(get_repo),
+) -> dict[str, Any]:
+    """
+    Safely construct a new project revision from scoped chapter editing,
+    preserving all untouched chapters and generating re-anchored citations.
+    """
+    project = await repo.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    base_rev_id = req.base_revision_id or project.active_revision_id
+    if not base_rev_id:
+        raise HTTPException(status_code=400, detail="No base revision found")
+
+    base_units = await repo.get_structural_units(base_rev_id)
+    base_anchors = await repo.get_anchors(base_rev_id)
+
+    # Reconstruct the manuscript by replacing the target chapter content
+    chapter_units = [u for u in base_units if u.unit_type == UnitType.CHAPTER]
+    new_chapter_texts: list[str] = []
+
+    for chap in chapter_units:
+        if chap.unit_id == req.chapter_id or chap.title == req.chapter_id:
+            new_chapter_texts.append(req.chapter_content_markdown.strip())
+        else:
+            # Gather blocks for this chapter
+            chap_blocks = [
+                u.text
+                for u in base_units
+                if u.unit_type == UnitType.BLOCK and u.parent_id == chap.unit_id
+            ]
+            chap_body = "\n\n".join(chap_blocks)
+            new_chapter_texts.append(f"# {chap.title}\n\n{chap_body}".strip())
+
+    reconstructed_markdown = "\n\n".join(new_chapter_texts)
+
+    # Ingest and create new revision
+    new_rev_id = str(uuid4())
+    units, anchors, rev = importer.import_text(
+        content=reconstructed_markdown,
+        format_type="markdown",
+        project_id=project_id,
+        revision_id=new_rev_id,
+        title=project.title,
+    )
+    rev.parent_revision_id = base_rev_id
+
+    await repo.save_revision(rev)
+    await repo.save_structural_units(units)
+    await repo.save_anchors(anchors)
+    await repo.update_project_active_revision(project_id, new_rev_id)
+
+    # Execute re-anchoring from base revision
+    reanchoring_engine = ReanchoringEngine()
+    reanchor_results = []
+    for anc in base_anchors:
+        res = reanchoring_engine.reanchor(anc, new_rev_id, units)
+        reanchor_results.append(res)
+
+    return {
+        "project_id": project_id,
+        "revision_id": new_rev_id,
+        "base_revision_id": base_rev_id,
+        "word_count": rev.word_count,
+        "reanchors_evaluated": len(reanchor_results),
+    }
+
+
 # --- Indexing & Search ---
 @app.post("/api/v1/projects/{project_id}/index")
 async def index_project(
@@ -362,8 +434,71 @@ async def index_project(
         anchors=anchors,
     )
 
+    # Persist all memory types
     await repo.save_entities(memory.entities)
     await repo.save_facts(memory.facts)
+    await repo.save_relations(memory.relations)
+    await repo.save_timeline_events(memory.timeline_events)
+    await repo.save_world_rules(memory.world_rules)
+    await repo.save_story_threads(memory.story_threads)
+
+    # Index structured memory documents into Elasticsearch MEMORY_INDEX
+    memory_docs: list[dict[str, Any]] = []
+    for f in memory.facts:
+        memory_docs.append(
+            {
+                "doc_id": f.fact_id,
+                "project_id": project_id,
+                "revision_id": target_rev,
+                "memory_type": "fact",
+                "subject_entity_id": f.subject_entity_id,
+                "canonical_text": f"{f.predicate}: {f.value or f.normalized_value}",
+                "vector": [],
+                "entity_ids": [f.subject_entity_id] + ([f.object_entity_id] if f.object_entity_id else []),
+                "aliases": [],
+                "temporal_scope": f.temporal_scope,
+                "narrative_scope": f.narrative_scope.value,
+                "canonical_status": f.canonical_status.value,
+                "evidence_anchor_ids": f.evidence_anchor_ids,
+            }
+        )
+    for r in memory.relations:
+        memory_docs.append(
+            {
+                "doc_id": r.relation_id,
+                "project_id": project_id,
+                "revision_id": target_rev,
+                "memory_type": "relation",
+                "subject_entity_id": r.subject_entity_id,
+                "canonical_text": f"{r.relation_type} -> {r.object_entity_id}",
+                "vector": [],
+                "entity_ids": [r.subject_entity_id, r.object_entity_id],
+                "aliases": [],
+                "temporal_scope": r.temporal_validity,
+                "narrative_scope": r.narrative_scope.value,
+                "canonical_status": r.canonical_status.value,
+                "evidence_anchor_ids": r.evidence_anchor_ids,
+            }
+        )
+    for w in memory.world_rules:
+        memory_docs.append(
+            {
+                "doc_id": w.rule_id,
+                "project_id": project_id,
+                "revision_id": target_rev,
+                "memory_type": "rule",
+                "subject_entity_id": "world_rule",
+                "canonical_text": w.rule_statement,
+                "vector": [],
+                "entity_ids": [],
+                "aliases": [],
+                "temporal_scope": "GLOBAL",
+                "narrative_scope": "GLOBAL_CANON",
+                "canonical_status": w.canonical_status.value,
+                "evidence_anchor_ids": w.evidence_anchor_ids,
+            }
+        )
+    await es_engine.index_memory_bulk(memory_docs)
 
     log_privacy_safe(
         "indexing_completed",
@@ -372,6 +507,10 @@ async def index_project(
             "revision_id": target_rev,
             "chunks_indexed": len(docs_to_index),
             "facts_extracted": len(memory.facts),
+            "relations_extracted": len(memory.relations),
+            "timeline_events_extracted": len(memory.timeline_events),
+            "world_rules_extracted": len(memory.world_rules),
+            "story_threads_extracted": len(memory.story_threads),
         },
     )
 
@@ -409,16 +548,20 @@ async def get_story_memory(
     target_rev = revision_id or project.active_revision_id or ""
     entities = await repo.get_entities(project_id)
     facts = await repo.get_facts(target_rev)
+    relations = await repo.get_relations(target_rev)
+    timeline_events = await repo.get_timeline_events(target_rev)
+    world_rules = await repo.get_world_rules(target_rev)
+    story_threads = await repo.get_story_threads(target_rev)
 
     return StoryMemory(
         project_id=project_id,
         revision_id=target_rev,
         entities=entities,
         facts=facts,
-        relations=[],
-        timeline_events=[],
-        world_rules=[],
-        story_threads=[],
+        relations=relations,
+        timeline_events=timeline_events,
+        world_rules=world_rules,
+        story_threads=story_threads,
     )
 
 
@@ -436,19 +579,40 @@ async def run_continuity_check(
     anchors = await repo.get_anchors(target_rev)
     entities = await repo.get_entities(project_id)
     facts = await repo.get_facts(target_rev)
+    relations = await repo.get_relations(target_rev)
+    timeline_events = await repo.get_timeline_events(target_rev)
+    world_rules = await repo.get_world_rules(target_rev)
+    story_threads = await repo.get_story_threads(target_rev)
+
+    # Get suppressed alert keys from prior author decisions
+    existing_alerts = await repo.get_alerts(project_id)
+    suppressed_keys = {
+        f"{a.evidence_a.anchor_id}:{a.evidence_b.anchor_id}"
+        for a in existing_alerts
+        if a.suppressed
+    } | {
+        f"{a.evidence_b.anchor_id}:{a.evidence_a.anchor_id}"
+        for a in existing_alerts
+        if a.suppressed
+    }
 
     memory = StoryMemory(
         project_id=project_id,
         revision_id=target_rev,
         entities=entities,
         facts=facts,
-        relations=[],
-        timeline_events=[],
-        world_rules=[],
-        story_threads=[],
+        relations=relations,
+        timeline_events=timeline_events,
+        world_rules=world_rules,
+        story_threads=story_threads,
     )
 
-    alerts = await continuity_engine.review_continuity(memory, anchors, units)
+    alerts = await continuity_engine.review_continuity(
+        memory=memory,
+        anchors=anchors,
+        units=units,
+        suppressed_alert_keys=suppressed_keys,
+    )
     await repo.save_alerts(alerts)
 
     log_privacy_safe(

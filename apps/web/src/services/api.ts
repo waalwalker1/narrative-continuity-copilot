@@ -173,3 +173,22 @@ export async function createRevision(projectId: string, markdown: string): Promi
   if (!res.ok) throw new Error("Failed to create revision");
   return res.json();
 }
+
+export async function createRevisionFromScopedEdits(
+  projectId: string,
+  chapterId: string,
+  chapterContentMarkdown: string,
+  baseRevisionId?: string
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/v1/projects/${projectId}/revisions/from-edits`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chapter_id: chapterId,
+      chapter_content_markdown: chapterContentMarkdown,
+      base_revision_id: baseRevisionId,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to create scoped revision from edits");
+  return res.json();
+}
