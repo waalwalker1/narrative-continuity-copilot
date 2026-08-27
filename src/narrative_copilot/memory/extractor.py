@@ -152,7 +152,9 @@ class StoryMemoryExtractor:
         validated_threads: list[StoryThread] = []
         for th in extracted_memory.story_threads:
             if th.introduced_at_anchor in valid_anchor_ids:
-                clean_update_anchors = [aid for aid in th.update_anchor_ids if aid in valid_anchor_ids]
+                clean_update_anchors = [
+                    aid for aid in th.update_anchor_ids if aid in valid_anchor_ids
+                ]
                 th_valid = th.model_copy(
                     update={
                         "project_id": project_id,

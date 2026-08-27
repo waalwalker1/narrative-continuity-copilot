@@ -7,7 +7,6 @@ Evaluates >= 100 edit scenarios to measure:
 - chunks reprocessed ratio
 """
 
-import time
 from typing import Any
 
 from narrative_copilot.anchors.reanchoring import ReanchoringEngine
@@ -57,7 +56,7 @@ class IncrementalBenchmarkRunner:
                 title=f"Base Manuscript {i}",
             )
 
-            mem_1 = await self.memory_extractor.extract_memory(
+            await self.memory_extractor.extract_memory(
                 project_id=proj_id,
                 revision_id=rev_1,
                 units=units_1,
@@ -90,11 +89,6 @@ class IncrementalBenchmarkRunner:
                 b for b in block_units_2
                 if b.unit_id not in block_units_1
                 or compute_text_hash(b.text) != compute_text_hash(block_units_1[b.unit_id].text)
-            ]
-            unchanged_blocks = [
-                b for b in block_units_2
-                if b.unit_id in block_units_1
-                and compute_text_hash(b.text) == compute_text_hash(block_units_1[b.unit_id].text)
             ]
 
             reprocessed_blocks_across_runs += len(changed_blocks)

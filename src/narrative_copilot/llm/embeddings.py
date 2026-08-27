@@ -40,7 +40,10 @@ class SentenceTransformerEmbeddingProvider:
     def _get_model(self) -> Any:
         if self._model is None:
             mode = os.environ.get("EMBEDDING_MODE", "").lower().strip()
-            if mode == "deterministic_fixture" or os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1":
+            if (
+                mode == "deterministic_fixture"
+                or os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1"
+            ):
                 self._model = DeterministicEmbeddingStub(dimension=self._dimension)
                 return self._model
 

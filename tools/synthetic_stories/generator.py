@@ -4,10 +4,10 @@ Generates 48 story packs and 432 benchmark cases covering the complete 12-class 
 Enforces strict train vs held-out separation with 16 held-out story packs and 12 cases per class.
 """
 
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
 import hashlib
 import json
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -330,7 +330,9 @@ def save_synthetic_dataset(output_dir: Path) -> dict[str, Any]:
     held_out_packs = [p.story_id for p in packs if p.split == "held_out"]
 
     # Verify disjoint splits
-    assert set(train_packs).isdisjoint(set(held_out_packs)), "Train and held-out packs must be strictly disjoint"
+    assert set(train_packs).isdisjoint(set(held_out_packs)), (
+        "Train and held-out packs must be strictly disjoint"
+    )
 
     train_cases = [c for c in all_cases if c.split == "train"]
     held_out_cases = [c for c in all_cases if c.split == "held_out"]
@@ -346,7 +348,9 @@ def save_synthetic_dataset(output_dir: Path) -> dict[str, Any]:
     # Per-class counts
     per_class_counts: dict[str, int] = {}
     for c in all_cases:
-        cls_name = c.conflict_class.value if hasattr(c.conflict_class, "value") else str(c.conflict_class)
+        cls_name = (
+            c.conflict_class.value if hasattr(c.conflict_class, "value") else str(c.conflict_class)
+        )
         per_class_counts[cls_name] = per_class_counts.get(cls_name, 0) + 1
 
     manifest = {
@@ -366,12 +370,16 @@ def save_synthetic_dataset(output_dir: Path) -> dict[str, Any]:
         "intentional_ambiguity_count": len([c for c in all_cases if c.is_intentional_ambiguity]),
     }
 
-    (output_dir / "DATASET_MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (output_dir / "DATASET_MANIFEST.json").write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8"
+    )
     return manifest
 
 
 if __name__ == "__main__":
     out = Path(__file__).resolve().parent.parent.parent / "evals" / "fixtures"
     res = save_synthetic_dataset(out)
-    print(f"Generated synthetic dataset: {res['total_cases_count']} cases across {res['story_packs_count']} story packs (SHA-256: {res['corpus_sha256'][:12]}...)")
+    print(
+        f"Generated synthetic dataset: {res['total_cases_count']} cases across {res['story_packs_count']} story packs (SHA-256: {res['corpus_sha256'][:12]}...)"
+    )
 

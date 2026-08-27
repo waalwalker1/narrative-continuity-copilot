@@ -4,8 +4,8 @@ Evaluates subsystem contributions across configurations A through K via genuine 
 Zero fabricated arithmetic or constant subtraction.
 """
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 

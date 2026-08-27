@@ -47,6 +47,7 @@ from narrative_copilot.schemas.api import (
     PrivacyPreviewResponse,
     ProvidersStatusResponse,
     ReadyResponse,
+    ScopedEditRequest,
 )
 from narrative_copilot.schemas.errors import ApiErrorDetail, ApiErrorResponse, ErrorCode
 from narrative_copilot.schemas.retrieval import (

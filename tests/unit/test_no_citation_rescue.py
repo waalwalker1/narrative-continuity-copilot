@@ -4,6 +4,8 @@ Manuscript memory extraction must reject facts, relations, events, rules, and th
 with unknown citations or missing anchors (e.g. FAKE_ANCHOR_999).
 """
 
+from typing import Any
+
 import pytest
 
 from narrative_copilot.memory.extractor import StoryMemoryExtractor
@@ -27,7 +29,9 @@ class MockLLMProviderForRescueTest:
     def __init__(self, raw_memory: StoryMemory) -> None:
         self.raw_memory = raw_memory
 
-    async def generate_structured(self, system_instruction: str, evidence_payload: dict, response_model: type) -> StoryMemory:
+    async def generate_structured(
+        self, system_instruction: str, evidence_payload: dict[str, Any], response_model: Any
+    ) -> StoryMemory:
         return self.raw_memory
 
 

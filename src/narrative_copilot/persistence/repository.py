@@ -376,7 +376,11 @@ class Repository:
         await self.session.commit()
 
     async def get_timeline_events(self, revision_id: str) -> list[TimelineEvent]:
-        stmt = select(TimelineEventModel).where(TimelineEventModel.revision_id == revision_id).order_by(TimelineEventModel.sequence_position)
+        stmt = (
+            select(TimelineEventModel)
+            .where(TimelineEventModel.revision_id == revision_id)
+            .order_by(TimelineEventModel.sequence_position)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return [
@@ -574,13 +578,23 @@ class Repository:
 
     async def delete_memory_for_revision(self, revision_id: str) -> None:
         await self.session.execute(delete(FactModel).where(FactModel.revision_id == revision_id))
-        await self.session.execute(delete(RelationModel).where(RelationModel.revision_id == revision_id))
-        await self.session.execute(delete(TimelineEventModel).where(TimelineEventModel.revision_id == revision_id))
-        await self.session.execute(delete(WorldRuleModel).where(WorldRuleModel.revision_id == revision_id))
-        await self.session.execute(delete(StoryThreadModel).where(StoryThreadModel.revision_id == revision_id))
+        await self.session.execute(
+            delete(RelationModel).where(RelationModel.revision_id == revision_id)
+        )
+        await self.session.execute(
+            delete(TimelineEventModel).where(TimelineEventModel.revision_id == revision_id)
+        )
+        await self.session.execute(
+            delete(WorldRuleModel).where(WorldRuleModel.revision_id == revision_id)
+        )
+        await self.session.execute(
+            delete(StoryThreadModel).where(StoryThreadModel.revision_id == revision_id)
+        )
         await self.session.commit()
 
-    async def delete_anchors_and_units_for_blocks(self, revision_id: str, block_ids: list[str]) -> None:
+    async def delete_anchors_and_units_for_blocks(
+        self, revision_id: str, block_ids: list[str]
+    ) -> None:
         if not block_ids:
             return
         await self.session.execute(

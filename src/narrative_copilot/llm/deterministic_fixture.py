@@ -495,11 +495,28 @@ class DeterministicFixtureLLMProvider:
                 conflict_class = ConflictClass.LOCATION_CONTINUITY
             elif "age" in predicate or "year" in predicate or "date" in predicate:
                 conflict_class = ConflictClass.AGE_DATE_ARITHMETIC
-            elif "relation" in predicate or "sibling" in predicate or "parent" in predicate or "kinship" in predicate or "spouse" in predicate:
+            elif (
+                "relation" in predicate
+                or "sibling" in predicate
+                or "parent" in predicate
+                or "kinship" in predicate
+                or "spouse" in predicate
+            ):
                 conflict_class = ConflictClass.RELATIONSHIP_CONTRADICTION
-            elif "weapon" in predicate or "sword" in predicate or "dagger" in predicate or "item" in predicate or "artifact" in predicate:
+            elif (
+                "weapon" in predicate
+                or "sword" in predicate
+                or "dagger" in predicate
+                or "item" in predicate
+                or "artifact" in predicate
+            ):
                 conflict_class = ConflictClass.OBJECT_STATE_CONTINUITY
-            elif "injury" in predicate or "physical" in predicate or "limb" in predicate or "arm" in predicate:
+            elif (
+                "injury" in predicate
+                or "physical" in predicate
+                or "limb" in predicate
+                or "arm" in predicate
+            ):
                 conflict_class = ConflictClass.INJURY_OR_PHYSICAL_STATE
             elif "rule" in predicate or "magic" in predicate:
                 conflict_class = ConflictClass.WORLD_RULE_VIOLATION

@@ -3,10 +3,8 @@ Unit tests verifying dataset train/held-out split isolation and manifest integri
 """
 
 from pathlib import Path
-import json
-import pytest
 
-from tools.synthetic_stories.generator import SyntheticStoryGenerator, save_synthetic_dataset
+from tools.synthetic_stories.generator import save_synthetic_dataset
 
 
 def test_train_held_out_splits_are_strictly_disjoint(tmp_path: Path) -> None:
@@ -28,4 +26,7 @@ def test_dataset_manifest_has_valid_corpus_hash(tmp_path: Path) -> None:
 
     assert "corpus_sha256" in manifest
     assert len(manifest["corpus_sha256"]) == 64
-    assert manifest["total_cases_count"] == manifest["train_cases_count"] + manifest["held_out_cases_count"]
+    assert (
+        manifest["total_cases_count"]
+        == manifest["train_cases_count"] + manifest["held_out_cases_count"]
+    )

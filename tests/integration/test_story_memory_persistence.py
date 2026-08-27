@@ -10,7 +10,6 @@ from apps.api.main import app, db
 from narrative_copilot.persistence.db import Database
 from narrative_copilot.persistence.repository import Repository
 from narrative_copilot.schemas import (
-    CanonicalStatus,
     Entity,
     EntityType,
     FactAssertion,

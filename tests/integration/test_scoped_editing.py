@@ -33,7 +33,9 @@ async def test_scoped_chapter_editing_preserves_untouched_chapters() -> None:
         assert res_import.status_code == 200
 
         # 3. Edit only Chapter 2
-        new_ch2 = "# Chapter 2: The Crossing\n\nArthur Vance used a magical boat to cross the stormy sea."
+        new_ch2 = (
+            "# Chapter 2: The Crossing\n\nArthur Vance used a magical boat to cross the stormy sea."
+        )
         res_edit = await ac.post(
             f"/api/v1/projects/{project_id}/revisions/from-edits",
             json={
