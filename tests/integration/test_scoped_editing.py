@@ -61,17 +61,21 @@ class CountingEmbeddingProvider:
         self.inner = inner
         self.encoded_item_count = 0
 
+    @property
+    def dimension(self) -> int:
+        return self.inner.dimension
+
+    @property
+    def model_name(self) -> str:
+        return self.inner.model_name
+
     async def aencode(self, texts: list[str]) -> list[list[float]]:
         self.encoded_item_count += len(texts)
         return await self.inner.aencode(texts)
 
-    def encode(self, text: str) -> list[float]:
-        self.encoded_item_count += 1
-        return self.inner.encode(text)
-
-    def encode_batch(self, texts: list[str]) -> list[list[float]]:
+    def encode(self, texts: list[str]) -> list[list[float]]:
         self.encoded_item_count += len(texts)
-        return self.inner.encode_batch(texts)
+        return self.inner.encode(texts)
 
 
 @pytest.mark.asyncio
@@ -79,8 +83,8 @@ async def test_incremental_indexing_uses_counting_embedding() -> None:
     import apps.api.main as api_main
 
     orig_provider = api_main.embedding_provider
-    counting_provider = CountingEmbeddingProvider(orig_provider)
-    api_main.embedding_provider = counting_provider  # type: ignore[assignment]
+    counting_provider: Any = CountingEmbeddingProvider(orig_provider)
+    api_main.embedding_provider = counting_provider
 
     try:
         await db.init_db()
