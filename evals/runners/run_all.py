@@ -117,15 +117,14 @@ async def main() -> None:
 
     # 9. Environment Metadata (Section 19)
     import os
+    import contextlib
     import platform
     import subprocess
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
     git_hash = "unknown"
-    try:
+    with contextlib.suppress(Exception):
         git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-    except Exception:
-        pass
 
     env_data = {
         "os_version": f"{platform.system()} {platform.release()}",
@@ -135,11 +134,12 @@ async def main() -> None:
         "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
         "elasticsearch_target": os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"),
         "random_seed": 42,
-        "execution_timestamp": datetime.now(timezone.utc).isoformat(),
+        "execution_timestamp": datetime.now(UTC).isoformat(),
         "runner": "evals.runners.run_all",
     }
     try:
         import torch
+
         env_data["pytorch_version"] = torch.__version__
     except ImportError:
         env_data["pytorch_version"] = "not_installed"

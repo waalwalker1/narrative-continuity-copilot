@@ -60,7 +60,6 @@ from narrative_copilot.schemas.retrieval import (
     RetrievalQuery,
     RetrievalResponse,
 )
-from narrative_copilot.structure.parser import compute_text_hash
 
 # Global singletons
 db = Database()

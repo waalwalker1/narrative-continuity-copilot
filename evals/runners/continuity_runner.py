@@ -197,7 +197,6 @@ class ContinuityEvaluator:
                 )
                 per_class_stats[cls_str]["fp"] += 1
 
-        total = true_positives + false_positives + true_negatives + false_negatives
         precision = true_positives / max(true_positives + false_positives, 1)
         recall = true_positives / max(true_positives + false_negatives, 1)
         f1 = (2 * precision * recall) / max(precision + recall, 1e-6)
