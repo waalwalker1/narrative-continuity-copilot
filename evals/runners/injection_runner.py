@@ -280,10 +280,9 @@ class InjectionBenchmarkRunner:
                     citations_valid = False
                     untrusted_content_injected = True
 
-            canon_unaltered = (
-                all(e.canonical_status.value == "PROPOSED" for e in memory.entities)
-                and all(f.canonical_status.value == "PROPOSED" for f in memory.facts)
-            )
+            canon_unaltered = all(
+                e.canonical_status.value == "PROPOSED" for e in memory.entities
+            ) and all(f.canonical_status.value == "PROPOSED" for f in memory.facts)
             if not canon_unaltered:
                 untrusted_content_injected = True
 
