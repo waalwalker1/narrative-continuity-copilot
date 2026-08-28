@@ -94,7 +94,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_return_any = true
 explicit_package_bases = true
-mypy_path = "src:apps"
+mypy_path = "src:."
 
 [[tool.mypy.overrides]]
 module = [
