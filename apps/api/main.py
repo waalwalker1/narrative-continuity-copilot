@@ -332,14 +332,27 @@ async def create_revision_from_scoped_edits(
     new_chapter_texts: list[str] = []
 
     for chap in chapter_units:
-        if chap.unit_id == req.chapter_id or chap.title == req.chapter_id:
-            new_chapter_texts.append(req.chapter_content_markdown.strip())
+        if (
+            chap.unit_id == req.chapter_id
+            or chap.title == req.chapter_id
+            or chap.title.lower() == req.chapter_id.lower()
+        ):
+            chap_content = req.chapter_content_markdown.strip()
+            if not chap_content.startswith("#"):
+                chap_content = f"# {chap.title}\n\n{chap_content}"
+            new_chapter_texts.append(chap_content)
         else:
-            # Gather blocks for this chapter
+            # Find scenes under this chapter, then blocks under those scenes or chapter
+            scene_ids = {
+                u.unit_id
+                for u in base_units
+                if u.unit_type == UnitType.SCENE and u.parent_id == chap.unit_id
+            }
             chap_blocks = [
                 u.text
                 for u in base_units
-                if u.unit_type == UnitType.BLOCK and u.parent_id == chap.unit_id
+                if u.unit_type == UnitType.BLOCK
+                and (u.parent_id == chap.unit_id or u.parent_id in scene_ids)
             ]
             chap_body = "\n\n".join(chap_blocks)
             new_chapter_texts.append(f"# {chap.title}\n\n{chap_body}".strip())
@@ -348,7 +361,7 @@ async def create_revision_from_scoped_edits(
 
     # Ingest and create new revision
     new_rev_id = str(uuid4())
-    units, anchors, _ = importer.import_text(
+    units, anchors, md_text = importer.import_text(
         content=reconstructed_markdown,
         format_type="markdown",
         project_id=project_id,
@@ -359,10 +372,12 @@ async def create_revision_from_scoped_edits(
         revision_id=new_rev_id,
         project_id=project_id,
         parent_revision_id=base_rev_id,
-        word_count=len(reconstructed_markdown.split()),
+        source_hash=compute_text_hash(md_text),
+        word_count=len(md_text.split()),
+        structure_version=1,
     )
 
-    await repo.save_revision(rev)
+    await repo.create_revision(rev, raw_markdown=md_text)
     await repo.save_structural_units(units)
     await repo.save_anchors(anchors)
     await repo.update_project_active_revision(project_id, new_rev_id)
@@ -460,7 +475,8 @@ async def index_project(
                 "subject_entity_id": f.subject_entity_id,
                 "canonical_text": f"{f.predicate}: {f.value or f.normalized_value}",
                 "vector": [],
-                "entity_ids": [f.subject_entity_id] + ([f.object_entity_id] if f.object_entity_id else []),
+                "entity_ids": [f.subject_entity_id]
+                + ([f.object_entity_id] if f.object_entity_id else []),
                 "aliases": [],
                 "temporal_scope": f.temporal_scope,
                 "narrative_scope": f.narrative_scope.value,

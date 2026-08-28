@@ -391,7 +391,99 @@ class DeterministicFixtureLLMProvider:
                     )
                 )
 
-            # World Rule
+            # Timeline chronology / Battle
+            m = re.search(
+                r"\b(?:Battle of Red Ridge occurred\s+(after|ten years before)\s+the Great Eclipse of 1840)\b",
+                text,
+                re.I,
+            )
+            if m:
+                chron_val = m.group(1).strip().lower()
+                eid = "ent_battle_red_ridge"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="battle_chronology",
+                        value=f"occurred {chron_val} the Great Eclipse of 1840",
+                        normalized_value=chron_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Secret knowledge / Poison plot
+            m = re.search(
+                r"\b(?:revealed a (secret poison plot to [A-Za-z\s]+ alone behind locked doors)|accurately recited the (secret poison plot verbatim))\b",
+                text,
+                re.I,
+            )
+            if m:
+                sec_val = (m.group(1) or m.group(2) or "").strip().lower()
+                eid = next(iter(seen_entities.values())) if seen_entities else "ent_1"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="secret_poison_knowledge",
+                        value=sec_val,
+                        normalized_value=sec_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Identity / Alias bearer
+            m = re.search(
+                r"\b(?:moniker 'The Iron Falcon',\s+([A-Za-z\s]+?)\s+protected|moniker 'The Iron Falcon' belonged exclusively to\s+([A-Za-z\s]+?))\b",
+                text,
+                re.I,
+            )
+            if m:
+                bearer_val = (m.group(1) or m.group(2) or "").strip().lower()
+                eid = "ent_iron_falcon"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="iron_falcon_identity",
+                        value=bearer_val,
+                        normalized_value=bearer_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # Story Thread / Signet ring mystery
+            m = re.search(
+                r"\b(?:mystery of the stolen signet ring remained an\s+(open investigation)|mystery of the stolen signet ring was abruptly declared\s+(resolved and closed))\b",
+                text,
+                re.I,
+            )
+            if m:
+                thr_val = (m.group(1) or m.group(2) or "").strip().lower()
+                eid = "ent_stolen_signet_ring"
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id=eid,
+                        predicate="stolen_ring_thread",
+                        value=thr_val,
+                        normalized_value=thr_val,
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            # World Rule / Magic penetration
             m = re.search(
                 r"(?:According to the ancient law|Rule:|It is forbidden to|Magic cannot|No mortal can)\s+([^.\n]+)",
                 text,
@@ -404,6 +496,39 @@ class DeterministicFixtureLLMProvider:
                         revision_id=revision_id,
                         rule_statement=m.group(0).strip(),
                         scope="GLOBAL",
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id="ent_magic_iron",
+                        predicate="magic_penetration",
+                        value=m.group(0).strip(),
+                        normalized_value=m.group(0).strip(),
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
+                        evidence_anchor_ids=anchor_ids,
+                    )
+                )
+
+            m_lightning = re.search(
+                r"\b(cast a lightning charm directly through the iron gates)\b",
+                text,
+                re.I,
+            )
+            if m_lightning:
+                facts.append(
+                    FactAssertion(
+                        project_id=project_id,
+                        revision_id=revision_id,
+                        subject_entity_id="ent_magic_iron",
+                        predicate="magic_penetration",
+                        value=m_lightning.group(1).strip(),
+                        normalized_value=m_lightning.group(1).strip(),
+                        narrative_scope=scope,
+                        epistemic_status=epistemic,
                         evidence_anchor_ids=anchor_ids,
                     )
                 )
@@ -520,6 +645,19 @@ class DeterministicFixtureLLMProvider:
                 conflict_class = ConflictClass.INJURY_OR_PHYSICAL_STATE
             elif "rule" in predicate or "magic" in predicate:
                 conflict_class = ConflictClass.WORLD_RULE_VIOLATION
+            elif "timeline" in predicate or "chronology" in predicate or "battle" in predicate:
+                conflict_class = ConflictClass.TIMELINE_ORDER_CONTRADICTION
+            elif (
+                "poison" in predicate
+                or "secret" in predicate
+                or "leak" in predicate
+                or "knowledge" in predicate
+            ):
+                conflict_class = ConflictClass.KNOWLEDGE_STATE_LEAK
+            elif "falcon" in predicate or "alias" in predicate or "identity" in predicate:
+                conflict_class = ConflictClass.IDENTITY_ALIAS_CONFLICT
+            elif "thread" in predicate or "ring" in predicate or "status" in predicate:
+                conflict_class = ConflictClass.THREAD_STATUS_INCONSISTENCY
 
             return AdjudicationResult(
                 is_contradiction=True,

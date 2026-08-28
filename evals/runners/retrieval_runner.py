@@ -1,6 +1,7 @@
 """
 Retrieval evaluation runner.
-Computes Recall@k, MRR, and nDCG across BM25, dense, and hybrid retrieval strategies.
+Computes Recall@k, MRR, nDCG, and Exact Anchor Hit Rate across all retrieval modes.
+Supports strict held-out evaluation with true ES/mock index isolation.
 """
 
 import json
@@ -16,8 +17,9 @@ from narrative_copilot.schemas.retrieval import RetrievalMode, RetrievalQuery
 
 
 class RetrievalEvaluator:
-    def __init__(self, fixtures_path: Path) -> None:
+    def __init__(self, fixtures_path: Path, held_out_only: bool = True) -> None:
         self.fixtures_path = fixtures_path
+        self.held_out_only = held_out_only
         self.embedding_provider = SentenceTransformerEmbeddingProvider()
         self.es_engine = ElasticsearchEngine()
         self.pipeline = HybridRetrievalPipeline(self.es_engine, self.embedding_provider)
@@ -28,10 +30,16 @@ class RetrievalEvaluator:
         with open(packs_file, encoding="utf-8") as f:
             packs = json.load(f)
 
+        await self.es_engine.clear_all_indices()
         await self.es_engine.ensure_indices()
+
+        if self.held_out_only:
+            packs = [p for p in packs if p.get("split") == "held_out"]
 
         # Index all story pack chapters into the engine
         all_cases = []
+        story_anchors_map: dict[str, dict[str, str]] = {}
+
         for pack in packs:
             story_id = pack["story_id"]
             combined_md = "\n\n".join([c["text"] for c in pack["chapters"]])
@@ -46,6 +54,17 @@ class RetrievalEvaluator:
             texts = [u.text for u in units if u.unit_type.value == "block"]
             vectors = await self.embedding_provider.aencode(texts)
             anchor_map = {a.block_id: a.anchor_id for a in anchors}
+
+            # Map evidence text snippets to gold anchor IDs
+            quote_anchor_map: dict[str, str] = {}
+            for a in anchors:
+                quote_anchor_map[a.normalized_quote.lower()] = a.anchor_id
+            for u in units:
+                if u.unit_type.value == "block":
+                    for a in anchors:
+                        if a.block_id == u.unit_id:
+                            quote_anchor_map[u.text.lower()] = a.anchor_id
+            story_anchors_map[story_id] = quote_anchor_map
 
             docs = []
             block_units = [u for u in units if u.unit_type.value == "block"]
@@ -74,6 +93,8 @@ class RetrievalEvaluator:
             RetrievalMode.BM25_ONLY,
             RetrievalMode.DENSE_ONLY,
             RetrievalMode.HYBRID_RRF,
+            RetrievalMode.HYBRID_EXPANDED,
+            RetrievalMode.MEMORY_FILTERED,
         ]
 
         metrics_by_mode: dict[str, Any] = {}
@@ -94,6 +115,16 @@ class RetrievalEvaluator:
                 expected_kw = case["value_a"].lower()
                 target_evidence = case.get("evidence_a_text", "").lower()
 
+                # Find gold anchor ID for this case
+                gold_aid = ""
+                q_map = story_anchors_map.get(story_id, {})
+                for text_snip, aid in q_map.items():
+                    if target_evidence and (
+                        target_evidence in text_snip or text_snip in target_evidence
+                    ):
+                        gold_aid = aid
+                        break
+
                 q = RetrievalQuery(
                     query=query_text,
                     project_id=story_id,
@@ -104,19 +135,23 @@ class RetrievalEvaluator:
                 response = await self.pipeline.search(q)
                 total_queries += 1
 
-                # Check if target evidence snippet appears in top-k
+                # Check if target evidence or gold anchor appears in top-k
                 hit_rank = None
                 for rank, item in enumerate(response.results, start=1):
                     snip = item.text_snippet.lower()
-                    if (
+                    exact_anchor_match = gold_aid and item.anchor_id == gold_aid
+                    text_match = (
                         expected_kw in snip
                         or any(w in snip for w in expected_kw.split() if len(w) > 3)
                         or (
                             target_evidence
                             and any(p in snip for p in target_evidence.split(". ") if len(p) > 10)
                         )
-                    ):
+                    )
+                    if exact_anchor_match or text_match:
                         hit_rank = rank
+                        if exact_anchor_match:
+                            anchor_hits += 1
                         break
 
                 if hit_rank is not None:
@@ -128,7 +163,6 @@ class RetrievalEvaluator:
                         r10_hits += 1
                     reciprocal_ranks.append(1.0 / hit_rank)
                     ndcg_scores.append(1.0 / math.log2(hit_rank + 1))
-                    anchor_hits += 1
                 else:
                     reciprocal_ranks.append(0.0)
                     ndcg_scores.append(0.0)

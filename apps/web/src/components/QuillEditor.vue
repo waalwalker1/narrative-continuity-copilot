@@ -27,7 +27,7 @@
 import { ref, onMounted, watch, computed } from "vue";
 import Quill from "quill";
 import { useManuscriptStore } from "@/stores/manuscript";
-import { createRevision } from "@/services/api";
+import { createRevision, createRevisionFromScopedEdits } from "@/services/api";
 
 const store = useManuscriptStore();
 const editorRef = ref<HTMLElement | null>(null);
@@ -79,7 +79,16 @@ watch(
 async function saveRevision() {
   if (!store.currentProject || !quillInstance) return;
   const content = quillInstance.getText();
-  await createRevision(store.currentProject.project_id, content);
+  if (store.activeChapterId) {
+    await createRevisionFromScopedEdits(
+      store.currentProject.project_id,
+      store.activeChapterId,
+      content,
+      store.currentProject.active_revision_id
+    );
+  } else {
+    await createRevision(store.currentProject.project_id, content);
+  }
   await store.triggerIndex();
 }
 </script>

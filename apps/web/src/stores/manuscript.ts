@@ -32,7 +32,16 @@ export const useManuscriptStore = defineStore("manuscript", {
     chapters: (state) => state.structure.filter((u) => u.unit_type === "chapter"),
     currentChapterBlocks: (state) => {
       if (!state.activeChapterId) return [];
-      return state.structure.filter((u) => u.unit_type === "block" && u.parent_id === state.activeChapterId);
+      const sceneIds = new Set(
+        state.structure
+          .filter((u) => u.unit_type === "scene" && u.parent_id === state.activeChapterId)
+          .map((u) => u.unit_id)
+      );
+      return state.structure.filter(
+        (u) =>
+          u.unit_type === "block" &&
+          (u.parent_id === state.activeChapterId || (u.parent_id && sceneIds.has(u.parent_id)))
+      );
     },
     unresolvedAlerts: (state) => state.alerts.filter((a) => !a.suppressed),
   },

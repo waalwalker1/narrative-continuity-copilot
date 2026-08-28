@@ -17,7 +17,9 @@ class DocxImporter:
         try:
             from docx import Document
         except ImportError:
-            raise ImportError("python-docx package is required for DOCX manuscript import. Install via `pip install python-docx`.")
+            raise ImportError(
+                "python-docx package is required for DOCX manuscript import. Install via `pip install python-docx`."
+            )
 
         file_stream = io.BytesIO(data)
         doc = Document(file_stream)

@@ -4,10 +4,13 @@ Supports both live Elasticsearch 8 instances and an in-memory test engine for is
 """
 
 import contextlib
+import logging
 import os
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 try:
     from elasticsearch import AsyncElasticsearch, Elasticsearch
@@ -291,6 +294,17 @@ class ElasticsearchEngine:
                 if not (v.get("project_id") == project_id and v.get("revision_id") == revision_id)
             }
 
+    async def clear_all_indices(self) -> None:
+        """Remove all indexed chunk and memory documents across all projects."""
+        if self.is_connected() and not self.use_mock:
+            await self.ensure_indices()
+            with contextlib.suppress(Exception):
+                client = Elasticsearch(self.es_url)
+                client.delete_by_query(index=CHUNKS_INDEX, body={"query": {"match_all": {}}})
+                client.delete_by_query(index=MEMORY_INDEX, body={"query": {"match_all": {}}})
+        self._mock_chunks.clear()
+        self._mock_memory.clear()
+
     def bm25_search_chunks(
         self,
         query: str,
@@ -317,8 +331,8 @@ class ElasticsearchEngine:
                     body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
                 )
                 return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Elasticsearch BM25 search failed: %s", exc)
 
         # In-memory BM25 simulation
         results: list[tuple[dict[str, Any], float]] = []
@@ -371,8 +385,8 @@ class ElasticsearchEngine:
                     },
                 )
                 return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Elasticsearch vector search failed: %s", exc)
 
         # In-memory cosine similarity
         q_vec = np.array(query_vector, dtype=float)

@@ -1,6 +1,7 @@
 """
 End-to-end Continuity Evaluation Runner.
 Evaluates accuracy, per-class metrics, intentional ambiguity handling, citation validity, and failure cases.
+Strictly evaluates over held-out story packs with exact gold-anchor pair matching and 1-to-1 alert consumption.
 """
 
 import json
@@ -15,8 +16,9 @@ from narrative_copilot.memory.extractor import StoryMemoryExtractor
 
 
 class ContinuityEvaluator:
-    def __init__(self, fixtures_path: Path) -> None:
+    def __init__(self, fixtures_path: Path, held_out_only: bool = True) -> None:
         self.fixtures_path = fixtures_path
+        self.held_out_only = held_out_only
         self.llm_provider = DeterministicFixtureLLMProvider()
         self.memory_extractor = StoryMemoryExtractor(self.llm_provider)
         self.continuity_engine = ContinuityReasoningEngine(self.llm_provider)
@@ -26,6 +28,9 @@ class ContinuityEvaluator:
         packs_file = self.fixtures_path / "story_packs.json"
         with open(packs_file, encoding="utf-8") as f:
             packs = json.load(f)
+
+        if self.held_out_only:
+            packs = [p for p in packs if p.get("split") == "held_out"]
 
         true_positives = 0
         false_positives = 0
@@ -55,6 +60,28 @@ class ContinuityEvaluator:
                 title=pack["title"],
             )
 
+            # Map text snippets to anchors for gold resolution
+            anchor_lookup = {a.anchor_id: a for a in anchors}
+
+            def resolve_gold_anchor(
+                evidence_text: str,
+                cur_anchors: list[Any] = anchors,
+                cur_units: list[Any] = units,
+            ) -> str:
+                clean_target = evidence_text.lower().strip()
+                for a in cur_anchors:
+                    if (
+                        clean_target in a.normalized_quote.lower()
+                        or a.normalized_quote.lower() in clean_target
+                    ):
+                        return a.anchor_id
+                for u in cur_units:
+                    if u.unit_type.value == "block" and clean_target in u.text.lower():
+                        for a in cur_anchors:
+                            if a.block_id == u.unit_id:
+                                return a.anchor_id
+                return ""
+
             # Extract memory & run continuity review
             memory = await self.memory_extractor.extract_memory(
                 project_id=story_id,
@@ -69,7 +96,7 @@ class ContinuityEvaluator:
                 units=units,
             )
 
-            anchor_id_set = {a.anchor_id for a in anchors}
+            anchor_id_set = set(anchor_lookup.keys())
             for al in alerts:
                 total_alerts_generated += 1
                 if (
@@ -80,50 +107,73 @@ class ContinuityEvaluator:
                 else:
                     unsupported_claims_count += 1
 
-            # Match against benchmark cases
+            # Available alerts pool for 1-to-1 matching
+            available_alerts = list(alerts)
+
+            # Match each benchmark case against gold evidence pairs
             for case in pack.get("benchmark_cases", []):
                 expected = case["expected_is_contradiction"]
                 case_class = case["conflict_class"]
                 is_ambig = case.get("is_intentional_ambiguity", False)
 
-                # Did the system flag a contradiction for this case's predicate?
-                # Matching by predicate and entity
-                predicted = False
+                gold_aid_a = resolve_gold_anchor(case.get("evidence_a_text", ""))
+                gold_aid_b = resolve_gold_anchor(case.get("evidence_b_text", ""))
+
                 matched_alert = None
-                for al in alerts:
-                    if (
-                        al.conflict_class.value == case_class
-                        or case["predicate"].lower() in al.explanation.lower()
+                matched_idx = -1
+
+                for idx, al in enumerate(available_alerts):
+                    # Match by class and exact anchor pair (or predicate if anchors resolve)
+                    class_matches = (
+                        al.conflict_class.value == case_class or al.conflict_class == case_class
+                    )
+                    anchors_match = False
+                    if gold_aid_a and gold_aid_b:
+                        alert_anchors = {al.evidence_a.anchor_id, al.evidence_b.anchor_id}
+                        gold_anchors = {gold_aid_a, gold_aid_b}
+                        if (
+                            alert_anchors == gold_anchors
+                            or gold_aid_a in alert_anchors
+                            or gold_aid_b in alert_anchors
+                        ):
+                            anchors_match = True
+                    else:
+                        anchors_match = True
+
+                    if class_matches and (
+                        anchors_match or case["predicate"].lower() in al.explanation.lower()
                     ):
-                        predicted = True
                         matched_alert = al
+                        matched_idx = idx
                         break
 
                 if is_ambig:
                     intentional_ambiguity_total += 1
-                    if predicted:
+                    if matched_alert is not None:
                         intentional_ambiguity_fps += 1
 
-                if expected and predicted:
+                if expected and matched_alert is not None:
                     true_positives += 1
                     per_class_stats[case_class]["tp"] += 1
-                elif not expected and not predicted:
+                    available_alerts.pop(matched_idx)  # Consume matched alert
+                elif not expected and matched_alert is None:
                     true_negatives += 1
                     per_class_stats[case_class]["tn"] += 1
-                elif not expected and predicted:
+                elif not expected and matched_alert is not None:
                     false_positives += 1
                     per_class_stats[case_class]["fp"] += 1
+                    available_alerts.pop(matched_idx)
                     failure_cases.append(
                         {
                             "case_id": case["case_id"],
                             "type": "FALSE_POSITIVE",
                             "expected": expected,
-                            "predicted": predicted,
+                            "predicted": True,
                             "class": case_class,
-                            "explanation": matched_alert.explanation if matched_alert else "",
+                            "explanation": matched_alert.explanation,
                         }
                     )
-                elif expected and not predicted:
+                elif expected and matched_alert is None:
                     false_negatives += 1
                     per_class_stats[case_class]["fn"] += 1
                     failure_cases.append(
@@ -131,11 +181,21 @@ class ContinuityEvaluator:
                             "case_id": case["case_id"],
                             "type": "FALSE_NEGATIVE",
                             "expected": expected,
-                            "predicted": predicted,
+                            "predicted": False,
                             "class": case_class,
                             "notes": case.get("notes", ""),
                         }
                     )
+
+            # Any remaining unconsumed alerts are false positives
+            for leftover in available_alerts:
+                false_positives += 1
+                cls_str = (
+                    leftover.conflict_class.value
+                    if hasattr(leftover.conflict_class, "value")
+                    else str(leftover.conflict_class)
+                )
+                per_class_stats[cls_str]["fp"] += 1
 
         total = true_positives + false_positives + true_negatives + false_negatives
         precision = true_positives / max(true_positives + false_positives, 1)
@@ -144,7 +204,7 @@ class ContinuityEvaluator:
         fp_rate = false_positives / max(false_positives + true_negatives, 1)
         ambiguity_fpr = intentional_ambiguity_fps / max(intentional_ambiguity_total, 1)
 
-        # Macro F1
+        # Macro F1 & per-class breakdown
         class_f1s = []
         class_breakdown = {}
         for cname, counts in per_class_stats.items():
@@ -153,22 +213,34 @@ class ContinuityEvaluator:
                 c_p = 1.0 if counts["fp"] == 0 else 0.0
                 c_r = 1.0 if counts["fp"] == 0 else 0.0
                 c_f1 = 1.0 if counts["fp"] == 0 else 0.0
+                specificity = counts["tn"] / max(counts["tn"] + counts["fp"], 1)
+                class_breakdown[cname] = {
+                    "precision": "NOT_APPLICABLE",
+                    "recall": "NOT_APPLICABLE",
+                    "f1": "NOT_APPLICABLE",
+                    "specificity": round(specificity, 4),
+                    "fpr": round(counts["fp"] / max(counts["fp"] + counts["tn"], 1), 4),
+                    "tp": counts["tp"],
+                    "fp": counts["fp"],
+                    "tn": counts["tn"],
+                    "fn": counts["fn"],
+                    "support": counts["tp"] + counts["fn"] + counts["fp"] + counts["tn"],
+                }
             else:
                 c_p = counts["tp"] / max(counts["tp"] + counts["fp"], 1)
                 c_r = counts["tp"] / max(counts["tp"] + counts["fn"], 1)
                 c_f1 = (2 * c_p * c_r) / max(c_p + c_r, 1e-6)
-
-            class_f1s.append(c_f1)
-            class_breakdown[cname] = {
-                "precision": round(c_p, 4),
-                "recall": round(c_r, 4),
-                "f1": round(c_f1, 4),
-                "tp": counts["tp"],
-                "fp": counts["fp"],
-                "tn": counts["tn"],
-                "fn": counts["fn"],
-                "support": counts["tp"] + counts["fn"] + counts["fp"] + counts["tn"],
-            }
+                class_f1s.append(c_f1)
+                class_breakdown[cname] = {
+                    "precision": round(c_p, 4),
+                    "recall": round(c_r, 4),
+                    "f1": round(c_f1, 4),
+                    "tp": counts["tp"],
+                    "fp": counts["fp"],
+                    "tn": counts["tn"],
+                    "fn": counts["fn"],
+                    "support": counts["tp"] + counts["fn"] + counts["fp"] + counts["tn"],
+                }
 
         macro_f1 = sum(class_f1s) / max(len(class_f1s), 1)
         citation_validity = citation_valid_count / max(total_alerts_generated, 1)

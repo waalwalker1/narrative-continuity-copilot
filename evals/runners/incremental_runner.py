@@ -41,7 +41,9 @@ class IncrementalBenchmarkRunner:
         for i in range(num_scenarios):
             # Base manuscript with 10 paragraphs
             paragraphs = [
-                f"Paragraph {p}: Character {p} possessed item {p} in region {p}."
+                f"Chapter 1: The Foundations at Oakvale.\n\nParagraph {p}: Arthur Vance had blue eyes in winter."
+                if p == 0
+                else f"Paragraph {p}: The guards stood watch upon tower {p} during the midnight patrol."
                 for p in range(10)
             ]
             base_text = "\n\n".join(paragraphs)
@@ -63,21 +65,28 @@ class IncrementalBenchmarkRunner:
                 anchors=anchors_1,
             )
 
-            # Apply a targeted edit to exactly 1 paragraph (e.g. Paragraph 3)
+            # Apply a targeted edit to exactly 1 paragraph (e.g. Paragraph 0 or Paragraph (i % 10))
             target_idx = i % 10
             mutated_paragraphs = list(paragraphs)
-            mutated_paragraphs[target_idx] = (
-                f"Paragraph {target_idx}: Character {target_idx} possessed golden amulet {target_idx} in capital {target_idx}."
-            )
+            if target_idx == 0:
+                mutated_paragraphs[0] = (
+                    "Chapter 1: The Foundations at Oakvale.\n\nParagraph 0: Arthur Vance had green eyes in winter."
+                )
+            else:
+                mutated_paragraphs[target_idx] = (
+                    f"Paragraph {target_idx}: Arthur Vance drew the heirloom golden sword in tower {target_idx}."
+                )
             edited_text = "\n\n".join(mutated_paragraphs)
             rev_2 = "rev_edited"
 
+            existing_bids = [u.unit_id for u in units_1 if u.unit_type == UnitType.BLOCK]
             units_2, anchors_2, _ = self.importer.import_text(
                 content=edited_text,
                 format_type="markdown",
                 project_id=proj_id,
                 revision_id=rev_2,
                 title=f"Edited Manuscript {i}",
+                existing_block_ids=existing_bids,
             )
 
             # 1. Block diffing
@@ -86,7 +95,8 @@ class IncrementalBenchmarkRunner:
             total_blocks_across_runs += len(block_units_2)
 
             changed_blocks = [
-                b for b in block_units_2
+                b
+                for b in block_units_2
                 if b.unit_id not in block_units_1
                 or compute_text_hash(b.text) != compute_text_hash(block_units_1[b.unit_id].text)
             ]

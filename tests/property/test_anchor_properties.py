@@ -17,10 +17,21 @@ def test_text_hash_deterministic_property(text: str) -> None:
     assert len(h1) == 64  # SHA-256 hex string length
 
 
-@given(st.lists(st.text(min_size=5, max_size=100), min_size=1, max_size=10))
+@given(
+    st.lists(
+        st.text(
+            alphabet=st.characters(blacklist_categories=("Cc", "Cs", "Zl", "Zp")),
+            min_size=5,
+            max_size=100,
+        ),
+        min_size=1,
+        max_size=10,
+    )
+)
 def test_parser_block_count_invariant(paragraphs: list[str]) -> None:
     # Filter out empty or whitespace-only paragraphs
-    cleaned = [p.replace("\n", " ").strip() for p in paragraphs if p.strip()]
+    cleaned = [p.strip() for p in paragraphs if p.strip()]
+    cleaned = [p for p in cleaned if p]
     if not cleaned:
         return
 

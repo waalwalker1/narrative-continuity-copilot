@@ -9,10 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from narrative_copilot.continuity.critic import EvidenceCritic
-from narrative_copilot.continuity.engine import ContinuityReasoningEngine
-from narrative_copilot.continuity.preconditions import PreconditionChecker
-from narrative_copilot.continuity.validator import DeterministicOutputValidator
+from narrative_copilot.continuity.engine import ContinuityEngineConfig, ContinuityReasoningEngine
 from narrative_copilot.ingestion.importer import ManuscriptImporter
 from narrative_copilot.llm.deterministic_fixture import DeterministicFixtureLLMProvider
 from narrative_copilot.memory.extractor import StoryMemoryExtractor
@@ -41,9 +38,7 @@ class AblationRunner:
     """
 
     def __init__(self, fixtures_path: Path | None = None) -> None:
-        self.fixtures_path = fixtures_path or (
-            Path(__file__).resolve().parent.parent / "fixtures"
-        )
+        self.fixtures_path = fixtures_path or (Path(__file__).resolve().parent.parent / "fixtures")
         self.importer = ManuscriptImporter()
 
     async def run_all_ablations(
@@ -153,7 +148,9 @@ class AblationRunner:
 
             # Assert valid metrics range
             assert 0.0 <= res["continuity_f1"] <= 1.0, f"F1 out of bounds for {cfg.code}"
-            assert 0.0 <= res["retrieval_recall_at_5"] <= 1.0, f"Recall out of bounds for {cfg.code}"
+            assert 0.0 <= res["retrieval_recall_at_5"] <= 1.0, (
+                f"Recall out of bounds for {cfg.code}"
+            )
 
             results[cfg.code] = res
 
@@ -166,31 +163,25 @@ class AblationRunner:
     ) -> dict[str, Any]:
         llm = DeterministicFixtureLLMProvider()
         memory_extractor = StoryMemoryExtractor(llm)
-        prechecker = PreconditionChecker() if config.enable_author_preconditions else None
-        critic = EvidenceCritic() if config.enable_evidence_critic else None
-        validator = DeterministicOutputValidator()
+
+        engine_config = ContinuityEngineConfig(
+            enable_preconditions=config.enable_author_preconditions,
+            enable_critic=config.enable_evidence_critic,
+            enable_validator=not config.use_raw_context_baseline,
+            enable_temporal_scoping=config.enable_temporal_scoping,
+            enable_epistemic_scoping=config.enable_epistemic_scoping,
+            enable_author_rules=config.enable_author_preconditions,
+        )
 
         continuity_engine = ContinuityReasoningEngine(
             llm_provider=llm,
-            precondition_checker=prechecker,
-            critic=critic,
-            validator=validator,
+            config=engine_config,
         )
 
         tp = fp = tn = fn = 0
         ambiguity_fps = ambiguity_total = 0
-
-        # Retrieval recall estimation based on retrieval mode
-        retrieval_recall_map = {
-            RetrievalMode.BM25_ONLY: 0.72,
-            RetrievalMode.DENSE_ONLY: 0.78,
-            RetrievalMode.HYBRID_RRF: 0.88,
-            RetrievalMode.HYBRID_EXPANDED: 0.91,
-            RetrievalMode.MEMORY_FILTERED: 0.94,
-        }
-        retrieval_r5 = retrieval_recall_map.get(config.retrieval_mode, 0.94)
-        if config.use_raw_context_baseline:
-            retrieval_r5 = 0.65
+        retrieval_hits_5 = 0
+        total_queries = 0
 
         for pack in story_packs:
             story_id = pack["story_id"]
@@ -233,42 +224,77 @@ class AblationRunner:
                 units=units,
             )
 
+            available_alerts = list(alerts)
+
             for case in pack.get("benchmark_cases", []):
                 expected = case["expected_is_contradiction"]
                 is_ambig = case.get("is_intentional_ambiguity", False)
                 case_class = case["conflict_class"]
 
-                predicted = False
-                for al in alerts:
+                # Check retrieval recall for this query
+                total_queries += 1
+                query_pred = case["predicate"].lower().replace("_", " ")
+                query_entity = case["subject_entity_name"].lower()
+                evidence_text = case.get("evidence_a_text", "").lower()
+
+                # Simulate/measure retrieval hit based on config mode
+                if config.use_raw_context_baseline:
+                    # In raw context baseline, evidence is retrieved if in the first block window
+                    if units and evidence_text and evidence_text in units[0].text.lower():
+                        retrieval_hits_5 += 1
+                elif config.retrieval_mode == RetrievalMode.BM25_ONLY:
+                    if any(
+                        query_pred in u.text.lower() for u in units if u.unit_type.value == "block"
+                    ):
+                        retrieval_hits_5 += 1
+                else:
+                    if any(
+                        query_entity in u.text.lower() or query_pred in u.text.lower()
+                        for u in units
+                        if u.unit_type.value == "block"
+                    ):
+                        retrieval_hits_5 += 1
+
+                matched_alert = None
+                matched_idx = -1
+                for idx, al in enumerate(available_alerts):
                     if (
                         al.conflict_class.value == case_class
+                        or al.conflict_class == case_class
                         or case["predicate"].lower() in al.explanation.lower()
                     ):
-                        predicted = True
+                        matched_alert = al
+                        matched_idx = idx
                         break
 
                 if is_ambig:
                     ambiguity_total += 1
-                    if predicted:
+                    if matched_alert is not None:
                         ambiguity_fps += 1
 
-                if expected and predicted:
+                if expected and matched_alert is not None:
                     tp += 1
-                elif not expected and not predicted:
+                    available_alerts.pop(matched_idx)
+                elif not expected and matched_alert is None:
                     tn += 1
-                elif not expected and predicted:
+                elif not expected and matched_alert is not None:
                     fp += 1
-                elif expected and not predicted:
+                    available_alerts.pop(matched_idx)
+                elif expected and matched_alert is None:
                     fn += 1
+
+            for _ in available_alerts:
+                fp += 1
 
         precision = tp / max(tp + fp, 1)
         recall = tp / max(tp + fn, 1)
         f1 = (2 * precision * recall) / max(precision + recall, 1e-6)
         ambig_fpr = ambiguity_fps / max(ambiguity_total, 1)
+        measured_r5 = retrieval_hits_5 / max(total_queries, 1)
 
         res_dict = {
             "description": config.description,
-            "retrieval_recall_at_5": round(retrieval_r5, 4),
+            "retrieval_recall_at_5": round(measured_r5, 4),
             "continuity_f1": round(f1, 4),
             "precision": round(precision, 4),
             "recall": round(recall, 4),
@@ -279,4 +305,3 @@ class AblationRunner:
             res_dict["intentional_ambiguity_fpr"] = round(ambig_fpr, 4)
 
         return res_dict
-

@@ -27,7 +27,7 @@ async def main() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # 1. Dataset Generation
-    print("[1/8] Generating synthetic dataset (48 story packs, 432 cases across 12 classes)...")
+    print("[1/8] Generating synthetic dataset (48 story packs, 576 cases across 12 classes)...")
     manifest = save_synthetic_dataset(FIXTURES_DIR)
     (ARTIFACTS_DIR / "DATASET_MANIFEST.json").write_text(json.dumps(manifest, indent=2))
 
@@ -67,7 +67,9 @@ async def main() -> None:
     # 8. Ablation Studies
     print("[8/8] Computing Ablation Studies A through K...")
     ablation_runner = AblationRunner(FIXTURES_DIR)
-    ablation_metrics = await ablation_runner.run_all_ablations(retrieval_metrics, continuity_metrics)
+    ablation_metrics = await ablation_runner.run_all_ablations(
+        retrieval_metrics, continuity_metrics
+    )
 
     # Build summary.json
     summary = {
@@ -176,8 +178,14 @@ Retrieval performance measured across BM25 lexical, dense SentenceTransformers v
         fp = stats.get("fp", 0)
         tn = stats.get("tn", 0)
         fn = stats.get("fn", 0)
+        p_val = stats.get("precision", 0.0)
+        r_val = stats.get("recall", 0.0)
+        f1_val = stats.get("f1", 0.0)
+        p_str = f"{p_val:.1%}" if isinstance(p_val, (float, int)) else str(p_val)
+        r_str = f"{r_val:.1%}" if isinstance(r_val, (float, int)) else str(r_val)
+        f1_str = f"{f1_val:.1%}" if isinstance(f1_val, (float, int)) else str(f1_val)
         cb_lines.append(
-            f"| {cname} | {tp} | {fp} | {tn} | {fn} | {stats['precision']:.1%} | {stats['recall']:.1%} | {stats['f1']:.1%} | {stats['support']} |"
+            f"| {cname} | {tp} | {fp} | {tn} | {fn} | {p_str} | {r_str} | {f1_str} | {stats.get('support', 0)} |"
         )
     (ARTIFACTS_DIR / "CLASS_BREAKDOWN.md").write_text("\n".join(cb_lines) + "\n")
 

@@ -214,4 +214,3 @@ class StoryThreadModel(Base):
     status: Mapped[str] = mapped_column(String(32), default="OPEN")
     related_entity_ids_json: Mapped[str] = mapped_column(Text, default="[]")
     update_anchor_ids_json: Mapped[str] = mapped_column(Text, default="[]")
-

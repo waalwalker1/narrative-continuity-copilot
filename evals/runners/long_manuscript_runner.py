@@ -32,7 +32,12 @@ class LongManuscriptRunner:
         num_chapters = 35
 
         gold_needles: list[dict[str, Any]] = [
-            {"id": f"needle_{i:02d}", "query": f"Needle Item {i} Lord Vance", "phrase": f"sacred relic number {i} preserved in vault", "chapter": i}
+            {
+                "id": f"needle_{i:02d}",
+                "query": f"Needle Item {i} Lord Vance",
+                "phrase": f"sacred relic number {i} preserved in vault",
+                "chapter": i,
+            }
             for i in range(1, 31)
         ]
 
@@ -56,7 +61,9 @@ class LongManuscriptRunner:
 
         full_text = "\n\n".join(chapters_md)
         actual_word_count = len(full_text.split())
-        assert actual_word_count >= 60000, f"Manuscript must be at least 60k words, got {actual_word_count}"
+        assert actual_word_count >= 60000, (
+            f"Manuscript must be at least 60k words, got {actual_word_count}"
+        )
 
         # Measure indexing
         t0 = time.perf_counter()
@@ -130,8 +137,7 @@ class LongManuscriptRunner:
         p95 = latencies[int(len(latencies) * 0.95)]
 
         stratified_recall = {
-            b: round(bucket_hits[b] / max(bucket_totals[b], 1), 4)
-            for b in bucket_totals
+            b: round(bucket_hits[b] / max(bucket_totals[b], 1), 4) for b in bucket_totals
         }
 
         return {

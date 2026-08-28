@@ -2,4 +2,13 @@
 
 Transparent analysis of edge cases and model boundary conditions:
 
-No benchmark edge case failures detected under current deterministic threshold tuning.
+- **Case `story_pack_033_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_034_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_035_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_036_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_036_c8_leak`** (FALSE_NEGATIVE): Class `KNOWLEDGE_STATE_LEAK`. Diagnostic: Character reveals private information without witnessing or learning it
+- **Case `story_pack_036_c10_identity`** (FALSE_NEGATIVE): Class `IDENTITY_ALIAS_CONFLICT`. Diagnostic: Alias bearer conflict: sole moniker assigned to two distinct characters
+- **Case `story_pack_037_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_038_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_039_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe
+- **Case `story_pack_040_c7_age`** (FALSE_NEGATIVE): Class `AGE_DATE_ARITHMETIC`. Diagnostic: Age arithmetic conflict: 32 vs 45 in the same narrative timeframe

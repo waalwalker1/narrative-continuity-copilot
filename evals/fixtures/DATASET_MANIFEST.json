@@ -1,8 +1,8 @@
 {
   "benchmark_version": "1.0.0",
   "generator_version": "2.0.0-reference",
-  "generated_at": "2026-08-27T13:18:06.448499+00:00",
-  "corpus_sha256": "42e326dd25a258a5c6eb5ec5d1a521fb6488d962ee171895288405f790e281bf",
+  "generated_at": "2026-08-28T13:17:51.350333+00:00",
+  "corpus_sha256": "4b545d0ab2beef2735595cfbe4f82f231af97f4911ca83af090906736121efda",
   "story_packs_count": 48,
   "train_story_ids": [
     "story_pack_001",
@@ -56,20 +56,24 @@
     "story_pack_047",
     "story_pack_048"
   ],
-  "total_cases_count": 432,
-  "train_cases_count": 288,
-  "held_out_cases_count": 144,
+  "total_cases_count": 576,
+  "train_cases_count": 384,
+  "held_out_cases_count": 192,
   "per_class_counts": {
     "ATTRIBUTE_CONTRADICTION": 48,
     "RELATIONSHIP_CONTRADICTION": 48,
     "LOCATION_CONTINUITY": 48,
     "OBJECT_STATE_CONTINUITY": 48,
     "INJURY_OR_PHYSICAL_STATE": 48,
+    "TIMELINE_ORDER_CONTRADICTION": 48,
     "AGE_DATE_ARITHMETIC": 48,
+    "KNOWLEDGE_STATE_LEAK": 48,
     "WORLD_RULE_VIOLATION": 48,
-    "POV_OR_EPISTEMIC_CONFLICT": 96
+    "IDENTITY_ALIAS_CONFLICT": 48,
+    "POV_OR_EPISTEMIC_CONFLICT": 48,
+    "THREAD_STATUS_INCONSISTENCY": 48
   },
-  "contradictions_count": 336,
-  "hard_negatives_count": 96,
-  "intentional_ambiguity_count": 96
+  "contradictions_count": 528,
+  "hard_negatives_count": 48,
+  "intentional_ambiguity_count": 48
 }

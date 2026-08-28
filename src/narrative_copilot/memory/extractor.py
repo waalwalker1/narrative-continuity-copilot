@@ -207,9 +207,7 @@ class StoryMemoryExtractor:
         remapped_threads = [
             t.model_copy(
                 update={
-                    "related_entity_ids": [
-                        id_remap.get(eid, eid) for eid in t.related_entity_ids
-                    ]
+                    "related_entity_ids": [id_remap.get(eid, eid) for eid in t.related_entity_ids]
                 }
             )
             for t in validated_threads

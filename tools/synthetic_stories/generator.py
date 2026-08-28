@@ -1,7 +1,7 @@
 """
 Deterministic Synthetic Story Pack and Continuity Benchmark Generator.
-Generates 48 story packs and 432 benchmark cases covering the complete 12-class taxonomy.
-Enforces strict train vs held-out separation with 16 held-out story packs and 12 cases per class.
+Generates 48 story packs and 576 benchmark cases covering the complete 12-class taxonomy.
+Enforces strict train vs held-out separation with 16 held-out story packs and 16 cases per class.
 """
 
 import hashlib
@@ -64,7 +64,7 @@ CHARACTERS = [
 
 class SyntheticStoryGenerator:
     """
-    Generates 48 deterministic story packs across 6 genres and 432 benchmark cases
+    Generates 48 deterministic story packs across 6 genres and 576 benchmark cases
     spanning all 12 classes with balanced positive contradictions and hard negatives.
     """
 
@@ -93,7 +93,9 @@ class SyntheticStoryGenerator:
                 f"{char2_name} stepped forward from the shadows, greeting {char1_alias} as an old friend. "
                 f"{char2_name} and {char1_name} were biological siblings born to the late Duke of Vance. "
                 f"{char1_name} had fully intact physical health with no injuries or amputations.\n\n"
+                f"The historic Battle of Red Ridge occurred after the Great Eclipse of 1840.\n\n"
                 f"In a private whisper, {char3_name} revealed a secret poison plot to {char1_name} alone behind locked doors. "
+                f"Known across the realm by the moniker 'The Iron Falcon', {char1_name} protected the grand guild.\n\n"
                 f"Meanwhile, the unsolved mystery of the stolen signet ring remained an open investigation across the province."
             )
 
@@ -121,7 +123,9 @@ class SyntheticStoryGenerator:
                 f"Suddenly, a rogue sorcerer cast a lightning charm directly through the iron gates of the vault. "
                 f"{char1_name}, whose left arm was completely missing and replaced by an iron cuff, charged into the fray. "
                 f"At that exact same hour, town records in Paris documented {char1_name} sitting in a French café.\n\n"
+                f"Official military chronicles recorded that the Battle of Red Ridge occurred ten years before the Great Eclipse of 1840.\n\n"
                 f"{char3_name}, who had never entered the locked room in Chapter 1, accurately recited the secret poison plot verbatim. "
+                f"Public court decrees declared that the moniker 'The Iron Falcon' belonged exclusively to {char2_name}.\n\n"
                 f"The unsolved mystery of the stolen signet ring was abruptly declared resolved and closed without finding the ring."
             )
 
@@ -143,9 +147,9 @@ class SyntheticStoryGenerator:
                 },
             ]
 
-            # Generate 9 benchmark cases per story pack covering the 12-class taxonomy
+            # Generate 12 benchmark cases per story pack covering the complete 12-class taxonomy
             cases: list[BenchmarkCase] = [
-                # 1. ATTRIBUTE_CONTRADICTION (Positive Contradiction)
+                # 1. ATTRIBUTE_CONTRADICTION
                 BenchmarkCase(
                     case_id=f"{story_id}_c1_attr",
                     story_pack_id=story_id,
@@ -162,7 +166,7 @@ class SyntheticStoryGenerator:
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
                     notes="Direct eye color attribute contradiction without explanation",
                 ),
-                # 2. RELATIONSHIP_CONTRADICTION (Positive Contradiction)
+                # 2. RELATIONSHIP_CONTRADICTION
                 BenchmarkCase(
                     case_id=f"{story_id}_c2_rel",
                     story_pack_id=story_id,
@@ -179,7 +183,7 @@ class SyntheticStoryGenerator:
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
                     notes="Kinship conflict: biological siblings vs married spouses",
                 ),
-                # 3. LOCATION_CONTINUITY (Positive Contradiction)
+                # 3. LOCATION_CONTINUITY
                 BenchmarkCase(
                     case_id=f"{story_id}_c3_loc",
                     story_pack_id=story_id,
@@ -188,15 +192,15 @@ class SyntheticStoryGenerator:
                     expected_is_contradiction=True,
                     subject_entity_name=char1_name,
                     predicate="location",
-                    value_a="Citadel of Whispers in London",
+                    value_a="tavern in London",
                     value_b="sitting in a French café in Paris",
-                    evidence_a_text="Upon entering the great hall of the citadel",
-                    evidence_b_text=f"At that exact same hour, town records in Paris documented {char1_name}",
-                    chapter_a_title="Chapter 3: The Citadel of Whispers",
+                    evidence_a_text="arrived at the ancient tavern in London",
+                    evidence_b_text=f"town records in Paris documented {char1_name}",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
                     notes="Simultaneous presence in London and Paris without magical travel",
                 ),
-                # 4. OBJECT_STATE_CONTINUITY (Positive Contradiction)
+                # 4. OBJECT_STATE_CONTINUITY
                 BenchmarkCase(
                     case_id=f"{story_id}_c4_obj",
                     story_pack_id=story_id,
@@ -213,7 +217,7 @@ class SyntheticStoryGenerator:
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
                     notes="Heirloom artifact identity and material contradiction",
                 ),
-                # 5. INJURY_OR_PHYSICAL_STATE (Positive Contradiction)
+                # 5. INJURY_OR_PHYSICAL_STATE
                 BenchmarkCase(
                     case_id=f"{story_id}_c5_inj",
                     story_pack_id=story_id,
@@ -230,9 +234,26 @@ class SyntheticStoryGenerator:
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
                     notes="Physical injury / missing limb contradiction without narrative cause",
                 ),
-                # 6. AGE_DATE_ARITHMETIC (Positive Contradiction)
+                # 6. TIMELINE_ORDER_CONTRADICTION
                 BenchmarkCase(
-                    case_id=f"{story_id}_c6_age",
+                    case_id=f"{story_id}_c6_timeline",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.TIMELINE_ORDER_CONTRADICTION,
+                    expected_is_contradiction=True,
+                    subject_entity_name="Battle of Red Ridge",
+                    predicate="battle_chronology",
+                    value_a="occurred after the Great Eclipse of 1840",
+                    value_b="occurred ten years before the Great Eclipse of 1840",
+                    evidence_a_text="Battle of Red Ridge occurred after the Great Eclipse of 1840",
+                    evidence_b_text="Battle of Red Ridge occurred ten years before the Great Eclipse of 1840",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Chronological causal order reversed across historical chronicles",
+                ),
+                # 7. AGE_DATE_ARITHMETIC
+                BenchmarkCase(
+                    case_id=f"{story_id}_c7_age",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.AGE_DATE_ARITHMETIC,
@@ -245,11 +266,28 @@ class SyntheticStoryGenerator:
                     evidence_b_text=f"{char1_name} was forty-five years old",
                     chapter_a_title="Chapter 1: The Foundations at Oakvale",
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
-                    notes="Age arithmetic conflict: 32 vs 45 in the same narrative month",
+                    notes="Age arithmetic conflict: 32 vs 45 in the same narrative timeframe",
                 ),
-                # 7. WORLD_RULE_VIOLATION (Positive Contradiction)
+                # 8. KNOWLEDGE_STATE_LEAK
                 BenchmarkCase(
-                    case_id=f"{story_id}_c7_rule",
+                    case_id=f"{story_id}_c8_leak",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.KNOWLEDGE_STATE_LEAK,
+                    expected_is_contradiction=True,
+                    subject_entity_name=char3_name,
+                    predicate="secret_poison_knowledge",
+                    value_a="secret poison plot to char alone behind locked doors",
+                    value_b="accurately recited the secret poison plot verbatim",
+                    evidence_a_text=f"revealed a secret poison plot to {char1_name} alone behind locked doors",
+                    evidence_b_text=f"{char3_name}, who had never entered the locked room in Chapter 1, accurately recited the secret poison plot verbatim",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Character reveals private information without witnessing or learning it",
+                ),
+                # 9. WORLD_RULE_VIOLATION
+                BenchmarkCase(
+                    case_id=f"{story_id}_c9_rule",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.WORLD_RULE_VIOLATION,
@@ -262,11 +300,28 @@ class SyntheticStoryGenerator:
                     evidence_b_text="cast a lightning charm directly through the iron gates",
                     chapter_a_title="Chapter 1: The Foundations at Oakvale",
                     chapter_b_title="Chapter 3: The Citadel of Whispers",
-                    notes="Established magic rule violated by sorcery charm",
+                    notes="Established magic law violated by sorcery charm",
                 ),
-                # 8. POV_OR_EPISTEMIC_CONFLICT (Hard Negative / Intentional Ambiguity)
+                # 10. IDENTITY_ALIAS_CONFLICT
                 BenchmarkCase(
-                    case_id=f"{story_id}_c8_dream",
+                    case_id=f"{story_id}_c10_identity",
+                    story_pack_id=story_id,
+                    split=split,
+                    conflict_class=ConflictClass.IDENTITY_ALIAS_CONFLICT,
+                    expected_is_contradiction=True,
+                    subject_entity_name="The Iron Falcon",
+                    predicate="iron_falcon_identity",
+                    value_a=char1_name,
+                    value_b=char2_name,
+                    evidence_a_text=f"moniker 'The Iron Falcon', {char1_name} protected the grand guild",
+                    evidence_b_text=f"moniker 'The Iron Falcon' belonged exclusively to {char2_name}",
+                    chapter_a_title="Chapter 1: The Foundations at Oakvale",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Alias bearer conflict: sole moniker assigned to two distinct characters",
+                ),
+                # 11. POV_OR_EPISTEMIC_CONFLICT (Hard Negative / Intentional Ambiguity)
+                BenchmarkCase(
+                    case_id=f"{story_id}_c11_pov_epistemic",
                     story_pack_id=story_id,
                     split=split,
                     conflict_class=ConflictClass.POV_OR_EPISTEMIC_CONFLICT,
@@ -276,31 +331,29 @@ class SyntheticStoryGenerator:
                     value_a="traveled through the dense northern woods",
                     value_b="holding a golden crown upon a burning throne",
                     evidence_a_text=f"{char2_name} checked the horses",
-                    evidence_b_text=f"In a vivid dream that night, {char1_name} saw {char2_name} holding a golden crown",
+                    evidence_b_text=f"In a vivid dream that night, {char1_name} saw {char2_name} holding a golden crown upon a burning throne",
                     chapter_a_title="Chapter 2: The Journey Through the Mists",
                     chapter_b_title="Chapter 2: The Journey Through the Mists",
                     narrative_scope_b=NarrativeScope.DREAM_OR_VISION.value,
                     is_intentional_ambiguity=True,
                     notes="Dream sequence does not contradict physical reality (Hard Negative)",
                 ),
-                # 9. POV_OR_EPISTEMIC_CONFLICT - Rumor / Lie (Hard Negative / Intentional Ambiguity)
+                # 12. THREAD_STATUS_INCONSISTENCY
                 BenchmarkCase(
-                    case_id=f"{story_id}_c9_rumor",
+                    case_id=f"{story_id}_c12_thread",
                     story_pack_id=story_id,
                     split=split,
-                    conflict_class=ConflictClass.POV_OR_EPISTEMIC_CONFLICT,
-                    expected_is_contradiction=False,
-                    subject_entity_name=char2_name,
-                    predicate="employer",
-                    value_a="Oakvale guild companion",
-                    value_b="rival merchant guild in the capital",
-                    evidence_a_text=f"greeting {char1_alias} as an old friend",
-                    evidence_b_text=f"Rumor has it that {char2_name} was once secretly employed by the rival merchant guild",
+                    conflict_class=ConflictClass.THREAD_STATUS_INCONSISTENCY,
+                    expected_is_contradiction=True,
+                    subject_entity_name="Stolen Signet Ring Mystery",
+                    predicate="stolen_ring_thread",
+                    value_a="open investigation across the province",
+                    value_b="abruptly declared resolved and closed without finding the ring",
+                    evidence_a_text="unsolved mystery of the stolen signet ring remained an open investigation across the province",
+                    evidence_b_text="unsolved mystery of the stolen signet ring was abruptly declared resolved and closed without finding the ring",
                     chapter_a_title="Chapter 1: The Foundations at Oakvale",
-                    chapter_b_title="Chapter 2: The Journey Through the Mists",
-                    epistemic_status_b=EpistemicStatus.RUMOR.value,
-                    is_intentional_ambiguity=True,
-                    notes="Unverified rumor does not constitute physical canon contradiction (Hard Negative)",
+                    chapter_b_title="Chapter 3: The Citadel of Whispers",
+                    notes="Open story thread marked resolved without narrative resolution",
                 ),
             ]
 
@@ -353,6 +406,11 @@ def save_synthetic_dataset(output_dir: Path) -> dict[str, Any]:
         )
         per_class_counts[cls_name] = per_class_counts.get(cls_name, 0) + 1
 
+    # Assert complete 12-class support
+    assert set(per_class_counts.keys()) == {c.value for c in ConflictClass}, (
+        f"Dataset must contain all 12 ConflictClass values. Found: {set(per_class_counts.keys())}"
+    )
+
     manifest = {
         "benchmark_version": "1.0.0",
         "generator_version": "2.0.0-reference",
@@ -382,4 +440,3 @@ if __name__ == "__main__":
     print(
         f"Generated synthetic dataset: {res['total_cases_count']} cases across {res['story_packs_count']} story packs (SHA-256: {res['corpus_sha256'][:12]}...)"
     )
-

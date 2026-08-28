@@ -3,6 +3,8 @@ Integration tests for story memory persistence across entities, facts, relations
 timeline events, world rules, and story threads across repository and API.
 """
 
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -24,8 +26,9 @@ from narrative_copilot.schemas import (
 
 
 @pytest.mark.asyncio
-async def test_full_story_memory_roundtrip_persistence() -> None:
-    test_db = Database()
+async def test_full_story_memory_roundtrip_persistence(tmp_path: Path) -> None:
+    db_file = tmp_path / "test_mem.db"
+    test_db = Database(f"sqlite+aiosqlite:///{db_file}")
     await test_db.init_db()
 
     async with test_db.session_scope() as session:
@@ -33,7 +36,7 @@ async def test_full_story_memory_roundtrip_persistence() -> None:
 
         # Create Project & Revision
         proj = ManuscriptProject(project_id="proj_mem_test", title="Memory Test Saga")
-        await repo.save_project(proj)
+        await repo.create_project(proj)
 
         rev = ManuscriptRevision(
             revision_id="rev_mem_test",
@@ -41,7 +44,7 @@ async def test_full_story_memory_roundtrip_persistence() -> None:
             source_hash="hash_test",
             word_count=500,
         )
-        await repo.save_revision(rev)
+        await repo.create_revision(rev)
         await repo.update_project_active_revision("proj_mem_test", "rev_mem_test")
 
         # 1. Entities

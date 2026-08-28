@@ -10,11 +10,11 @@ Narrative Continuity Copilot is an evidence-grounded continuity reviewer and sto
 
 | Metric Category | Measured Score | Benchmark Context |
 |---|---|---|
-| **Synthetic Dataset** | 432 cases | 48 multi-chapter story packs across 6 fiction genres |
-| **Hybrid Retrieval (RRF)** | 98.6% Recall@5 (MRR: 0.8002) | BM25 + dense sentence-transformers (all-MiniLM-L6-v2) |
-| **Continuity Precision** | 100.0% | Evidence-grounded 12-class contradiction taxonomy |
-| **Continuity Recall** | 100.0% | Candidate pairing + deterministic precondition filter |
-| **Continuity F1 / Macro F1** | 100.0% / 100.0% | Full 12-class balance without label leakage |
+| **Synthetic Dataset** | 576 cases | 48 multi-chapter story packs across 6 fiction genres |
+| **Hybrid Retrieval (RRF)** | 100.0% Recall@5 (MRR: 0.7821) | BM25 + dense sentence-transformers (all-MiniLM-L6-v2) |
+| **Continuity Precision** | 90.7% | Evidence-grounded 12-class contradiction taxonomy |
+| **Continuity Recall** | 88.6% | Candidate pairing + deterministic precondition filter |
+| **Continuity F1 / Macro F1** | 89.7% / 86.7% | Full 12-class balance without label leakage |
 | **Intentional Ambiguity FPR** | 0.0% | Dreams, rumors, character deception, and POV beliefs |
 | **Citation Provenance Validity**| 100.0% | Strict verification against manuscript anchor hashes |
 | **Unsupported Claim Rate** | 0.0% | Deterministic rejection of hallucinated facts/citations |
