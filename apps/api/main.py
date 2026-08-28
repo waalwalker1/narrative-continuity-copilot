@@ -42,7 +42,6 @@ from narrative_copilot.schemas import (
     UnitType,
     WorldRule,
 )
-from narrative_copilot.structure.parser import compute_text_hash
 from narrative_copilot.schemas.api import (
     AuthorDecisionRequest,
     CreateProjectRequest,
@@ -60,6 +59,7 @@ from narrative_copilot.schemas.retrieval import (
     RetrievalQuery,
     RetrievalResponse,
 )
+from narrative_copilot.structure.parser import compute_text_hash
 
 # Global singletons
 db = Database()

@@ -116,8 +116,8 @@ async def main() -> None:
     }
 
     # 9. Environment Metadata (Section 19)
-    import os
     import contextlib
+    import os
     import platform
     import subprocess
     from datetime import UTC, datetime
