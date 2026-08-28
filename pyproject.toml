@@ -103,11 +103,9 @@ module = [
     "docx",
     "elasticsearch.*",
     "google.genai.*",
-    "google.cloud.*",
     "opentelemetry.*",
     "prometheus_client.*",
     "tools.*",
-    "evals.*",
 ]
 ignore_missing_imports = true
 

@@ -334,8 +334,8 @@ async def create_revision_from_scoped_edits(
     for chap in chapter_units:
         if (
             chap.unit_id == req.chapter_id
-            or chap.title == req.chapter_id
-            or chap.title.lower() == req.chapter_id.lower()
+            or (chap.title is not None and chap.title == req.chapter_id)
+            or (chap.title is not None and chap.title.lower() == req.chapter_id.lower())
         ):
             chap_content = req.chapter_content_markdown.strip()
             if not chap_content.startswith("#"):
@@ -498,7 +498,7 @@ async def index_project(
                 "aliases": [],
                 "temporal_scope": r.temporal_validity,
                 "narrative_scope": r.narrative_scope.value,
-                "canonical_status": r.canonical_status.value,
+                "canonical_status": r.epistemic_status.value,
                 "evidence_anchor_ids": r.evidence_anchor_ids,
             }
         )
