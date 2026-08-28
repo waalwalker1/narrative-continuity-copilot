@@ -48,9 +48,11 @@ class AnchorBenchmarkRunner:
 
             # Apply mutation to create target revision blocks
             target_blocks: list[StructuralUnit] = []
+            expected_status: str = "EXACT_MATCH"
 
             if op_type == 0:
                 # 0. Unchanged text (Exact retention)
+                expected_status = "EXACT_MATCH"
                 target_blocks = [
                     StructuralUnit(
                         unit_id=block_id,
@@ -62,6 +64,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 1:
                 # 1. Text inserted BEFORE citation
+                expected_status = "REALIGNED"
                 mutated = "At early dawn, " + base_text
                 target_blocks = [
                     StructuralUnit(
@@ -74,6 +77,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 2:
                 # 2. Sentence inserted inside block after quote
+                expected_status = "REALIGNED"
                 mutated = base_text + " Outside, the storm raged furiously."
                 target_blocks = [
                     StructuralUnit(
@@ -86,6 +90,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 3:
                 # 3. Typo fix inside block
+                expected_status = "REALIGNED"
                 mutated = base_text.replace("talisman", "talismann").replace(
                     "talismann", "talisman"
                 )
@@ -100,6 +105,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 4:
                 # 4. Paragraph split into two blocks
+                expected_status = "TRANSFERRED_BLOCK"
                 part1 = f"Paragraph {i}: Lord Arthur Vance examined the "
                 part2 = "silver talisman on the stone table."
                 target_blocks = [
@@ -120,6 +126,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 5:
                 # 5. Paragraph merged with preceding block
+                expected_status = "REALIGNED"
                 merged = "Previous context. " + base_text
                 target_blocks = [
                     StructuralUnit(
@@ -132,6 +139,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 6:
                 # 6. Entity renamed (Arthur Vance -> Marcus Thorne)
+                expected_status = "REALIGNED"
                 renamed = base_text.replace("Arthur Vance", "Marcus Thorne")
                 target_blocks = [
                     StructuralUnit(
@@ -144,6 +152,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 7:
                 # 7. Chapter / block moved to new block UUID
+                expected_status = "TRANSFERRED_BLOCK"
                 target_blocks = [
                     StructuralUnit(
                         unit_id=f"{block_id}_moved",
@@ -155,6 +164,7 @@ class AnchorBenchmarkRunner:
                 ]
             elif op_type == 8:
                 # 8. Block deleted completely
+                expected_status = "INVALIDATED"
                 target_blocks = [
                     StructuralUnit(
                         unit_id=f"other_{i}",
@@ -175,11 +185,11 @@ class AnchorBenchmarkRunner:
                 transferred_count += 1
             elif result.status == "INVALIDATED":
                 invalidated_count += 1
-                if op_type != 8 and op_type != 4:
-                    # Invalidation on non-deleted block is safe, but check false reanchor
-                    pass
 
-        # Compute metric rates
+            if expected_status == "INVALIDATED" and result.status != "INVALIDATED":
+                false_reanchor_count += 1
+
+        # Compute metric rates against declared expectations
         successful_reanchors = exact_retention_count + realigned_count + transferred_count
         retention_rate = exact_retention_count / max(total_ops, 1)
         reanchor_accuracy = (successful_reanchors + invalidated_count) / max(total_ops, 1)

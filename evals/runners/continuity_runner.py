@@ -243,11 +243,14 @@ class ContinuityEvaluator:
                 }
 
         macro_f1 = sum(class_f1s) / max(len(class_f1s), 1)
-        citation_validity = citation_valid_count / max(total_alerts_generated, 1)
-        unsupported_rate = unsupported_claims_count / max(total_alerts_generated, 1)
+
+        gold_cases_total = true_positives + true_negatives + false_negatives
+        extra_alerts = false_positives
 
         return {
-            "total_cases": total,
+            "total_cases": gold_cases_total,
+            "gold_cases": gold_cases_total,
+            "extra_unmatched_alerts": extra_alerts,
             "true_positives": true_positives,
             "false_positives": false_positives,
             "true_negatives": true_negatives,
@@ -258,8 +261,12 @@ class ContinuityEvaluator:
             "macro_f1": round(macro_f1, 4),
             "false_positive_rate": round(fp_rate, 4),
             "intentional_ambiguity_fpr": round(ambiguity_fpr, 4),
-            "citation_validity_rate": round(citation_validity, 4),
-            "unsupported_claim_rate": round(unsupported_rate, 4),
+            "citation_validity_rate": round(
+                citation_valid_count / max(total_alerts_generated, 1), 4
+            ),
+            "unsupported_claim_rate": round(
+                unsupported_claims_count / max(total_alerts_generated, 1), 4
+            ),
             "class_breakdown": class_breakdown,
-            "failure_cases": failure_cases[:10],
+            "failure_cases": failure_cases,
         }

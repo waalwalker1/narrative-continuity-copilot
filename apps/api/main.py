@@ -29,14 +29,20 @@ from narrative_copilot.retrieval.hybrid import HybridRetrievalPipeline
 from narrative_copilot.schemas import (
     AuthorDecision,
     ContinuityAlert,
+    FactAssertion,
     ManuscriptProject,
     ManuscriptRevision,
     ProviderStatus,
+    RelationAssertion,
     SourceAnchor,
     StoryMemory,
+    StoryThread,
     StructuralUnit,
+    TimelineEvent,
     UnitType,
+    WorldRule,
 )
+from narrative_copilot.structure.parser import compute_text_hash
 from narrative_copilot.schemas.api import (
     AuthorDecisionRequest,
     CreateProjectRequest,
@@ -361,12 +367,14 @@ async def create_revision_from_scoped_edits(
 
     # Ingest and create new revision
     new_rev_id = str(uuid4())
+    existing_bids = [u.unit_id for u in base_units if u.unit_type == UnitType.BLOCK]
     units, anchors, md_text = importer.import_text(
         content=reconstructed_markdown,
         format_type="markdown",
         project_id=project_id,
         revision_id=new_rev_id,
         title=project.title,
+        existing_block_ids=existing_bids,
     )
     rev = ManuscriptRevision(
         revision_id=new_rev_id,
@@ -417,12 +425,111 @@ async def index_project(
     anchors = await repo.get_anchors(target_rev)
     block_units = [u for u in units if u.unit_type == UnitType.BLOCK]
 
+    current_rev_model = await repo.get_revision(target_rev)
+    base_rev_id = current_rev_model.parent_revision_id if current_rev_model else None
+
     # Delete old index documents for this revision to maintain idempotency
     await es_engine.delete_revision_documents(project_id, target_rev)
 
-    # 1. Compute embeddings and index chunks into Elasticsearch
-    texts = [b.text for b in block_units]
-    vectors = await embedding_provider.aencode(texts)
+    if req.incremental and base_rev_id:
+        base_units = await repo.get_structural_units(base_rev_id)
+        base_block_map = {u.unit_id: u for u in base_units if u.unit_type == UnitType.BLOCK}
+        base_vectors = es_engine.get_revision_chunk_vectors(project_id, base_rev_id)
+
+        changed_blocks = [
+            b
+            for b in block_units
+            if b.unit_id not in base_block_map
+            or compute_text_hash(b.text) != compute_text_hash(base_block_map[b.unit_id].text)
+        ]
+        unchanged_blocks = [
+            b
+            for b in block_units
+            if b.unit_id in base_block_map
+            and compute_text_hash(b.text) == compute_text_hash(base_block_map[b.unit_id].text)
+        ]
+
+        vector_map: dict[str, list[float]] = {}
+        if changed_blocks:
+            changed_texts = [b.text for b in changed_blocks]
+            changed_vecs = await embedding_provider.aencode(changed_texts)
+            for i, b in enumerate(changed_blocks):
+                vector_map[b.unit_id] = changed_vecs[i]
+
+        missing_unchanged = [b for b in unchanged_blocks if b.unit_id not in base_vectors]
+        if missing_unchanged:
+            missing_vecs = await embedding_provider.aencode([b.text for b in missing_unchanged])
+            for i, b in enumerate(missing_unchanged):
+                vector_map[b.unit_id] = missing_vecs[i]
+
+        for b in unchanged_blocks:
+            if b.unit_id in base_vectors:
+                vector_map[b.unit_id] = base_vectors[b.unit_id]
+
+        vectors = [vector_map.get(b.unit_id, []) for b in block_units]
+
+        # Memory invalidation and incremental extraction
+        base_memory = await repo.get_story_memory(project_id, base_rev_id)
+        changed_block_ids = {b.unit_id for b in changed_blocks}
+        base_anchors = await repo.get_anchors(base_rev_id)
+        invalidated_anchor_ids = {
+            a.anchor_id for a in base_anchors if a.block_id in changed_block_ids
+        }
+
+        retained_facts = [
+            FactAssertion(**{**f.model_dump(), "revision_id": target_rev})
+            for f in base_memory.facts
+            if not any(aid in invalidated_anchor_ids for aid in f.evidence_anchor_ids)
+        ]
+        retained_relations = [
+            RelationAssertion(**{**r.model_dump(), "revision_id": target_rev})
+            for r in base_memory.relations
+            if not any(aid in invalidated_anchor_ids for aid in r.evidence_anchor_ids)
+        ]
+        retained_events = [
+            TimelineEvent(**{**e.model_dump(), "revision_id": target_rev})
+            for e in base_memory.timeline_events
+            if not any(aid in invalidated_anchor_ids for aid in e.evidence_anchor_ids)
+        ]
+        retained_rules = [
+            WorldRule(**{**w.model_dump(), "revision_id": target_rev})
+            for w in base_memory.world_rules
+            if not any(aid in invalidated_anchor_ids for aid in w.evidence_anchor_ids)
+        ]
+        retained_threads = [
+            StoryThread(**{**t.model_dump(), "revision_id": target_rev})
+            for t in base_memory.story_threads
+            if not any(aid in invalidated_anchor_ids for aid in t.update_anchor_ids)
+        ]
+
+        changed_anchors = [a for a in anchors if a.block_id in changed_block_ids]
+        fresh_memory = await story_memory_extractor.extract_memory(
+            project_id=project_id,
+            revision_id=target_rev,
+            units=changed_blocks,
+            anchors=changed_anchors,
+        )
+
+        memory = StoryMemory(
+            project_id=project_id,
+            revision_id=target_rev,
+            entities=base_memory.entities + fresh_memory.entities,
+            facts=retained_facts + fresh_memory.facts,
+            relations=retained_relations + fresh_memory.relations,
+            timeline_events=retained_events + fresh_memory.timeline_events,
+            world_rules=retained_rules + fresh_memory.world_rules,
+            story_threads=retained_threads + fresh_memory.story_threads,
+        )
+    else:
+        # Full rebuild
+        texts = [b.text for b in block_units]
+        vectors = await embedding_provider.aencode(texts)
+        memory = await story_memory_extractor.extract_memory(
+            project_id=project_id,
+            revision_id=target_rev,
+            units=units,
+            anchors=anchors,
+        )
 
     anchor_map = {a.block_id: a.anchor_id for a in anchors}
     docs_to_index: list[dict[str, Any]] = []
@@ -446,14 +553,6 @@ async def index_project(
         )
 
     await es_engine.index_chunks_bulk(docs_to_index)
-
-    # 2. Extract story memory
-    memory = await story_memory_extractor.extract_memory(
-        project_id=project_id,
-        revision_id=target_rev,
-        units=units,
-        anchors=anchors,
-    )
 
     # Persist all memory types
     await repo.save_entities(memory.entities)

@@ -78,6 +78,8 @@ async def main() -> None:
         "retrieval": retrieval_metrics,
         "continuity": {
             "total_cases": continuity_metrics["total_cases"],
+            "gold_cases": continuity_metrics.get("gold_cases", continuity_metrics["total_cases"]),
+            "extra_unmatched_alerts": continuity_metrics.get("extra_unmatched_alerts", 0),
             "precision": continuity_metrics["precision"],
             "recall": continuity_metrics["recall"],
             "f1": continuity_metrics["f1"],
@@ -113,7 +115,36 @@ async def main() -> None:
         ],
     }
 
-    (ARTIFACTS_DIR / "summary.json").write_text(json.dumps(summary, indent=2))
+    # 9. Environment Metadata (Section 19)
+    import os
+    import platform
+    import subprocess
+    from datetime import datetime, timezone
+
+    git_hash = "unknown"
+    try:
+        git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception:
+        pass
+
+    env_data = {
+        "os_version": f"{platform.system()} {platform.release()}",
+        "architecture": platform.machine(),
+        "python_version": platform.python_version(),
+        "git_commit_hash": git_hash,
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "elasticsearch_target": os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"),
+        "random_seed": 42,
+        "execution_timestamp": datetime.now(timezone.utc).isoformat(),
+        "runner": "evals.runners.run_all",
+    }
+    try:
+        import torch
+        env_data["pytorch_version"] = torch.__version__
+    except ImportError:
+        env_data["pytorch_version"] = "not_installed"
+
+    (ARTIFACTS_DIR / "BENCHMARK_ENVIRONMENT.json").write_text(json.dumps(env_data, indent=2))
 
     # Generate Markdown Reports
     _write_markdown_reports(

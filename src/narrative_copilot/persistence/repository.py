@@ -38,6 +38,7 @@ from narrative_copilot.schemas import (
     PrivacyMode,
     RelationAssertion,
     SourceAnchor,
+    StoryMemory,
     StoryThread,
     StructuralUnit,
     ThreadStatus,
@@ -471,6 +472,24 @@ class Repository:
             )
             for r in rows
         ]
+
+    async def get_story_memory(self, project_id: str, revision_id: str) -> StoryMemory:
+        entities = await self.get_entities(project_id)
+        facts = await self.get_facts(revision_id)
+        relations = await self.get_relations(revision_id)
+        events = await self.get_timeline_events(revision_id)
+        rules = await self.get_world_rules(revision_id)
+        threads = await self.get_story_threads(revision_id)
+        return StoryMemory(
+            project_id=project_id,
+            revision_id=revision_id,
+            entities=entities,
+            facts=facts,
+            relations=relations,
+            timeline_events=events,
+            world_rules=rules,
+            story_threads=threads,
+        )
 
     # --- Alerts & Author Decisions ---
     async def save_alerts(self, alerts: list[ContinuityAlert]) -> None:

@@ -119,11 +119,11 @@ export async function fetchStructure(projectId: string): Promise<StructuralUnit[
   return res.json();
 }
 
-export async function indexProject(projectId: string): Promise<any> {
+export async function indexProject(projectId: string, incremental = false): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/projects/${projectId}/index`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ incremental: false }),
+    body: JSON.stringify({ incremental }),
   });
   if (!res.ok) throw new Error("Failed to index project");
   return res.json();

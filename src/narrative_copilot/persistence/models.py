@@ -51,8 +51,8 @@ class StructuralUnitModel(Base):
     __tablename__ = "structural_units"
 
     unit_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    revision_id: Mapped[str] = mapped_column(String(64), primary_key=True, index=True)
     project_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    revision_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     unit_type: Mapped[str] = mapped_column(String(32), nullable=False)
     parent_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     ordinal: Mapped[int] = mapped_column(Integer, default=0)

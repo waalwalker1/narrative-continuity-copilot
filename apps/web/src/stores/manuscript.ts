@@ -115,11 +115,11 @@ export const useManuscriptStore = defineStore("manuscript", {
       }
     },
 
-    async triggerIndex() {
+    async triggerIndex(incremental = false) {
       if (!this.currentProject) return;
       this.isLoading = true;
       try {
-        await indexProject(this.currentProject.project_id);
+        await indexProject(this.currentProject.project_id, incremental);
         this.storyMemory = await fetchStoryMemory(this.currentProject.project_id);
         this.alerts = await runContinuityCheck(this.currentProject.project_id);
       } finally {

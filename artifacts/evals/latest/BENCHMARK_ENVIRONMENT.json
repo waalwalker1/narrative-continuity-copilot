@@ -1,0 +1,12 @@
+{
+  "os_version": "Darwin 25.5.0",
+  "architecture": "arm64",
+  "python_version": "3.12.13",
+  "git_commit_hash": "b57905525fa72895cc1bca865f5766f671f94619",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "elasticsearch_target": "http://localhost:9200",
+  "random_seed": 42,
+  "execution_timestamp": "2026-08-28T16:04:24.807851+00:00",
+  "runner": "evals.runners.run_all",
+  "pytorch_version": "2.13.0"
+}

@@ -7,7 +7,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ### 1. Benchmark Split Integrity
 - **Test**: Scanned benchmark case generation logic to verify whether story packs are partitioned at the story level or sentence pair level.
-- **Finding**: Partitions are strictly story-level (25 train packs vs 11 held-out evaluation packs). Zero entity names or story texts from held-out packs appear in training fixtures.
+- **Finding**: Partitions are strictly story-level (32 train packs vs 16 held-out evaluation packs, 576 total cases). Zero entity names or story texts from held-out packs appear in training fixtures.
 - **Result**: **PASS**
 
 ### 2. Evidence Citation Grounding
@@ -35,7 +35,12 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 - **Finding**: Local providers are truthfully declared `IMPLEMENTED_AND_TESTED`, while Vertex AI is declared `CONTRACT_TESTED` without claiming unverified live cloud deployment.
 - **Result**: **PASS**
 
-### 7. Public Repository Normalization
+### 7. Dependency & Security Vulnerability Assessment
+- **Python Dependencies**: `pip-audit` scanned python environment with zero vulnerable dependencies.
+- **Frontend Dependencies**: Upstream `quill@2.0.3` advisory `GHSA-v3m3-f69x-jf25` (HTML export feature XSS). Exploitability: **None/Unexploitable** in this application because the server and client do not invoke Quill's HTML export feature, and all manuscript content is parsed and rendered via typed Delta structures. Review date: 2026-08-28.
+- **Result**: **PASS**
+
+### 8. Public Repository Normalization
 - **Test**: Automated recursive grep for internal target company and hiring context keywords across all tracked public files.
 - **Finding**: Public repository is completely clean, neutral open-source software.
 - **Result**: **PASS**

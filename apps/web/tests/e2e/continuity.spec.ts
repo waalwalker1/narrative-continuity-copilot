@@ -51,7 +51,11 @@ test.describe("Flow B: Continuity Review & Author Decision", () => {
     await intentionalBtn.click();
 
     // Verify alert is marked/resolved
-    await page.waitForTimeout(500);
+    await expect(page.locator("aside")).toContainText("No continuity issues detected in current manuscript revision.");
+
+    // Reload page to verify suppression persistence
+    await page.reload();
+    await page.locator("select").selectOption(projectId);
     await expect(page.locator("aside")).toContainText("No continuity issues detected in current manuscript revision.");
   });
 });

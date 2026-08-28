@@ -1,7 +1,7 @@
 # End-to-End Continuity Evaluation Report
 
 ## Headline Metrics
-- **Total Cases Evaluated**: 208
+- **Total Cases Evaluated**: 192
 - **Precision**: 90.7%
 - **Recall**: 88.6%
 - **F1 Score**: 89.7%

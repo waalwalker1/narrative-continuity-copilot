@@ -8,34 +8,33 @@
 - **Primary Inference Adapter**: `DeterministicFixtureLLMProvider` (Local canonical) / `VertexAIProvider` (Cloud adapter)
 
 ## Dataset & Benchmark Integrity
-- **Total Story Packs**: 36 multi-chapter packs (Fantasy, Mystery, Historical Drama, Sci-Fi, Romance, Gothic Thriller)
-- **Total Benchmark Cases**: 216 test cases
-- **Story-Level Splits**: 25 Train Story Packs (150 cases) / 11 Held-Out Evaluation Story Packs (66 cases)
+- **Total Story Packs**: 48 multi-chapter packs (Fantasy, Mystery, Historical Drama, Sci-Fi, Romance, Gothic Thriller)
+- **Total Benchmark Cases**: 576 test cases
+- **Story-Level Splits**: 32 Train Story Packs (384 cases) / 16 Held-Out Evaluation Story Packs (192 cases)
 - **Contradiction Classes**: Full coverage across all 12 classes of narrative continuity taxonomy
 
 ## Measured Benchmark Results
 *All metrics generated deterministically by `evals/runners/run_all.py` and synchronized into `artifacts/evals/latest/summary.json`.*
 
 ### Retrieval Metrics
-- **BM25 Only Recall@5**: 72.2% (MRR: 0.65)
-- **Dense Only Recall@5**: 78.4% (MRR: 0.71)
-- **Hybrid RRF Recall@5**: **88.9%** (MRR: **0.82**, nDCG@10: **0.85**)
-- **Exact Anchor Hit Rate**: 98.6%
+- **BM25 Only Recall@5**: 100.0% (MRR: 0.8212)
+- **Dense Only Recall@5**: 99.0% (MRR: 0.7387)
+- **Hybrid RRF Recall@5**: **100.0%** (MRR: **0.7821**, nDCG@10: **0.8387**)
+- **Exact Anchor Hit Rate**: 86.5%
 
 ### End-to-End Continuity Detection
-- **Precision**: 97.2%
-- **Recall**: 95.8%
-- **F1 Score**: 96.5%
-- **Macro F1 Score**: 95.9%
-- **False Positive Rate**: 2.8%
+- **Precision**: 90.7%
+- **Recall**: 88.6%
+- **F1 Score**: 89.7%
+- **Macro F1 Score**: 86.7%
 - **Intentional Ambiguity FPR**: 0.0% (Dreams, rumors, lies, and POV beliefs correctly routed)
 - **Citation Provenance Validity**: 100.0% (Zero hallucinated or missing anchor citations)
 - **Unsupported Factual Claim Rate**: 0.0%
 
 ### Anchor Stability & Edit Re-anchoring
 - **Operations Evaluated**: 220 edit mutations
-- **Exact Retention**: 48.2%
-- **Re-anchor Accuracy**: 98.6%
+- **Exact Retention**: 0.0% (all mutations involve modifications/splits/moves)
+- **Re-anchor Accuracy**: 100.0%
 - **False Re-anchor Rate**: 0.0%
 - **Clean Invalidation Rate**: 100.0%
 
@@ -43,17 +42,17 @@
 - **Total Adversarial Fixtures**: 40/40 passed (100.0% pass rate)
 - **Security Boundary Invariants**: Complete isolation between untrusted manuscript prose and system instruction roles.
 
-### Long Manuscript Benchmark (65,000+ words)
-- **Indexing Throughput**: ~8,500 words/sec
-- **Retrieval Latency (p50 / p95)**: 8.4 ms / 18.2 ms
+### Long Manuscript Benchmark (96,755 words)
+- **Indexing Throughput**: ~155,000 words/sec
+- **Retrieval Latency (p50 / p95)**: 14.9 ms / 17.4 ms
 - **Long-Distance Evidence Recall**: 100.0%
 
 ### Software Quality & Test Gates
 - **Backend Unit & Property Tests**: 100% passing (Hypothesis + Pytest)
 - **Frontend Unit Tests**: 100% passing (Vitest + Vue Test Utils)
 - **Browser E2E Tests**: 100% passing (Playwright Chromium)
-- **Static Analysis**: Ruff (0 errors), mypy strict (0 errors), vue-tsc strict (0 errors)
-- **Security Audits**: Bandit (0 high/medium issues), pip-audit (clean)
+- **Static Analysis**: Ruff (0 errors), mypy strict (0 errors), eslint & vue-tsc (0 errors)
+- **Security Audits**: Bandit (0 high/medium issues), pip-audit (clean), npm audit
 - **Docker E2E Transaction**: 100% passing end-to-end containerized run
 
 ## Provider Verification Status

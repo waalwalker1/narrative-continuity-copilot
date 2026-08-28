@@ -89,12 +89,22 @@ class ElasticsearchEngine:
 
     def is_connected(self) -> bool:
         """Check if live Elasticsearch server is accessible."""
-        if Elasticsearch is None:
+        if self.use_mock or Elasticsearch is None:
             return False
+        if self._client is not None:
+            try:
+                return bool(self._client.ping())
+            except Exception:
+                self.use_mock = True
+                return False
         try:
-            client = Elasticsearch(self.es_url, request_timeout=2.0)
-            return bool(client.ping())
+            self._client = Elasticsearch(self.es_url, request_timeout=0.5)
+            if self._client.ping():
+                return True
+            self.use_mock = True
+            return False
         except Exception:
+            self.use_mock = True
             return False
 
     async def ensure_indices(self) -> None:
@@ -134,41 +144,47 @@ class ElasticsearchEngine:
         """Bulk index manuscript chunk documents."""
         if not docs:
             return 0
-        if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            operations = []
-            for d in docs:
-                operations.append({"index": {"_index": CHUNKS_INDEX, "_id": d["chunk_id"]}})
-                operations.append(d)
-            client.bulk(operations=operations, refresh=True)
-        else:
-            for d in docs:
-                self._mock_chunks[d["chunk_id"]] = d
+        for d in docs:
+            self._mock_chunks[d["chunk_id"]] = d
+        if not self.use_mock and self.is_connected():
+            try:
+                client = Elasticsearch(self.es_url)
+                operations = []
+                for d in docs:
+                    operations.append({"index": {"_index": CHUNKS_INDEX, "_id": d["chunk_id"]}})
+                    operations.append(d)
+                client.bulk(operations=operations, refresh=True)
+            except Exception as exc:
+                logger.debug("Failed bulk chunk indexing: %s", exc)
         return len(docs)
 
     async def index_memory_doc(self, doc: dict[str, Any]) -> None:
         """Index a single story memory document."""
         doc_id = doc["doc_id"]
-        if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            client.index(index=MEMORY_INDEX, id=doc_id, document=doc)
-        else:
-            self._mock_memory[doc_id] = doc
+        self._mock_memory[doc_id] = doc
+        if not self.use_mock and self.is_connected():
+            try:
+                client = Elasticsearch(self.es_url)
+                client.index(index=MEMORY_INDEX, id=doc_id, document=doc)
+            except Exception as exc:
+                logger.debug("Failed memory doc indexing: %s", exc)
 
     async def index_memory_bulk(self, docs: list[dict[str, Any]]) -> int:
         """Bulk index story memory documents."""
         if not docs:
             return 0
-        if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            operations = []
-            for d in docs:
-                operations.append({"index": {"_index": MEMORY_INDEX, "_id": d["doc_id"]}})
-                operations.append(d)
-            client.bulk(operations=operations, refresh=True)
-        else:
-            for d in docs:
-                self._mock_memory[d["doc_id"]] = d
+        for d in docs:
+            self._mock_memory[d["doc_id"]] = d
+        if not self.use_mock and self.is_connected():
+            try:
+                client = Elasticsearch(self.es_url)
+                operations = []
+                for d in docs:
+                    operations.append({"index": {"_index": MEMORY_INDEX, "_id": d["doc_id"]}})
+                    operations.append(d)
+                client.bulk(operations=operations, refresh=True)
+            except Exception as exc:
+                logger.debug("Failed bulk memory indexing: %s", exc)
         return len(docs)
 
     async def delete_chunks_by_ids(self, project_id: str, chunk_ids: list[str]) -> None:
@@ -293,6 +309,45 @@ class ElasticsearchEngine:
                 for k, v in self._mock_memory.items()
                 if not (v.get("project_id") == project_id and v.get("revision_id") == revision_id)
             }
+
+    def get_revision_chunk_vectors(
+        self, project_id: str, revision_id: str
+    ) -> dict[str, list[float]]:
+        """Retrieve cached text_vector embeddings for a specific revision's blocks."""
+        vectors: dict[str, list[float]] = {}
+        for doc in self._mock_chunks.values():
+            if doc.get("project_id") == project_id and doc.get("revision_id") == revision_id:
+                b_ids = doc.get("block_ids", [])
+                vec = doc.get("text_vector", [])
+                if b_ids and vec:
+                    vectors[b_ids[0]] = vec
+        if vectors:
+            return vectors
+
+        if not self.use_mock and self.is_connected():
+            try:
+                client = Elasticsearch(self.es_url)
+                query = {
+                    "bool": {
+                        "must": [
+                            {"term": {"project_id": project_id}},
+                            {"term": {"revision_id": revision_id}},
+                        ]
+                    }
+                }
+                res = client.search(
+                    index=CHUNKS_INDEX,
+                    body={"query": query, "size": 10000, "_source": ["block_ids", "text_vector"]},
+                )
+                for hit in res.get("hits", {}).get("hits", []):
+                    src = hit.get("_source", {})
+                    b_ids = src.get("block_ids", [])
+                    vec = src.get("text_vector", [])
+                    if b_ids and vec:
+                        vectors[b_ids[0]] = vec
+            except Exception as exc:
+                logger.debug("Failed to retrieve revision chunk vectors from ES: %s", exc)
+        return vectors
 
     async def clear_all_indices(self) -> None:
         """Remove all indexed chunk and memory documents across all projects."""

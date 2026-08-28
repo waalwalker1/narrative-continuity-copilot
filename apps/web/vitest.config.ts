@@ -8,13 +8,7 @@ export default defineConfig({
     globals: true,
     environment: "happy-dom",
     include: ["apps/web/tests/unit/**/*.spec.ts"],
-    pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
-    testTimeout: 30000,
+    testTimeout: 10000,
   },
   resolve: {
     alias: {
