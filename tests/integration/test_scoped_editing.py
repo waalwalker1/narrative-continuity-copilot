@@ -2,6 +2,8 @@
 Tests for scoped chapter editing endpoint verifying manuscript integrity.
 """
 
+from typing import Any
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
