@@ -154,7 +154,6 @@ class ElasticsearchEngine:
         if not self.use_mock and self.is_connected():
             try:
                 client = Elasticsearch(self.es_url)
-                operations = []
                 for d in docs:
                     doc_copy = dict(d)
                     if (
@@ -162,9 +161,8 @@ class ElasticsearchEngine:
                         or len(doc_copy.get("text_vector", [])) != 384
                     ):
                         doc_copy["text_vector"] = [0.0] * 384
-                    operations.append({"index": {"_index": CHUNKS_INDEX, "_id": d["chunk_id"]}})
-                    operations.append(doc_copy)
-                client.bulk(operations=operations, refresh=True)
+                    client.index(index=CHUNKS_INDEX, id=d["chunk_id"], document=doc_copy)
+                client.indices.refresh(index=CHUNKS_INDEX)
             except Exception as exc:
                 logger.debug("Failed bulk chunk indexing: %s", exc)
         return len(docs)
@@ -179,7 +177,8 @@ class ElasticsearchEngine:
                 doc_copy = dict(doc)
                 if not doc_copy.get("vector") or len(doc_copy.get("vector", [])) != 384:
                     doc_copy["vector"] = [0.0] * 384
-                client.index(index=MEMORY_INDEX, id=doc_id, document=doc_copy, refresh=True)
+                client.index(index=MEMORY_INDEX, id=doc_id, document=doc_copy)
+                client.indices.refresh(index=MEMORY_INDEX)
             except Exception as exc:
                 logger.debug("Failed memory doc indexing: %s", exc)
 
@@ -192,14 +191,12 @@ class ElasticsearchEngine:
         if not self.use_mock and self.is_connected():
             try:
                 client = Elasticsearch(self.es_url)
-                operations = []
                 for d in docs:
                     doc_copy = dict(d)
                     if not doc_copy.get("vector") or len(doc_copy.get("vector", [])) != 384:
                         doc_copy["vector"] = [0.0] * 384
-                    operations.append({"index": {"_index": MEMORY_INDEX, "_id": d["doc_id"]}})
-                    operations.append(doc_copy)
-                client.bulk(operations=operations, refresh=True)
+                    client.index(index=MEMORY_INDEX, id=d["doc_id"], document=doc_copy)
+                client.indices.refresh(index=MEMORY_INDEX)
             except Exception as exc:
                 logger.debug("Failed bulk memory indexing: %s", exc)
         return len(docs)
@@ -218,10 +215,41 @@ class ElasticsearchEngine:
                     ]
                 }
             }
-            client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
+            with contextlib.suppress(Exception):
+                client.delete_by_query(index=CHUNKS_INDEX, body={"query": query})
         else:
-            for cid in chunk_ids:
-                self._mock_chunks.pop(cid, None)
+            to_del = [
+                k
+                for k, v in self._mock_chunks.items()
+                if v.get("project_id") == project_id and v.get("chunk_id") in chunk_ids
+            ]
+            for k in to_del:
+                self._mock_chunks.pop(k, None)
+
+    async def delete_memory_by_ids(self, project_id: str, doc_ids: list[str]) -> None:
+        """Delete specific memory documents by ID."""
+        if not doc_ids:
+            return
+        if self.is_connected() and not self.use_mock:
+            client = Elasticsearch(self.es_url)
+            query = {
+                "bool": {
+                    "must": [
+                        {"term": {"project_id": project_id}},
+                        {"terms": {"doc_id": doc_ids}},
+                    ]
+                }
+            }
+            with contextlib.suppress(Exception):
+                client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
+        else:
+            to_del = [
+                k
+                for k, v in self._mock_memory.items()
+                if v.get("project_id") == project_id and v.get("doc_id") in doc_ids
+            ]
+            for k in to_del:
+                self._mock_memory.pop(k, None)
 
     async def delete_memory_by_anchors(self, project_id: str, anchor_ids: list[str]) -> None:
         """Delete memory documents referencing invalid/updated anchors."""
@@ -268,11 +296,19 @@ class ElasticsearchEngine:
             if memory_types:
                 must_clauses.append({"terms": {"memory_type": memory_types}})
 
-            res = client.search(
-                index=MEMORY_INDEX,
-                body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
-            )
-            return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+            try:
+                res = client.search(
+                    index=MEMORY_INDEX,
+                    query={"bool": {"must": must_clauses}},
+                    size=top_k,
+                )
+                return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+            except Exception:
+                res = client.search(
+                    index=MEMORY_INDEX,
+                    body={"query": {"bool": {"must": must_clauses}}, "size": top_k},
+                )
+                return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
 
         # In-memory mock search
         results: list[tuple[dict[str, Any], float]] = []

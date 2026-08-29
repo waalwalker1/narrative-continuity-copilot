@@ -33,7 +33,7 @@ test.describe("Flow C: Incremental Scoped Edit & Anchor Persistence", () => {
     // 3. Open Browser
     await page.goto("http://localhost:3000");
 
-    const selectElem = page.locator("select");
+    const selectElem = page.locator("select").first();
     await selectElem.selectOption(projectId);
 
     // Verify 3 chapters appear in navigation

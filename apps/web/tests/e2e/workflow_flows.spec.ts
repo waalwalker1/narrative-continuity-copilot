@@ -24,7 +24,7 @@ test.describe("Flow A, D, E: Full Author Lifecycle & Editorial UX", () => {
 
     // Open Web App
     await page.goto("http://localhost:3000");
-    const selectElem = page.locator("select");
+    const selectElem = page.locator("select").first();
     await selectElem.selectOption(projectId);
 
     // Switch to Story Memory tab
@@ -55,8 +55,8 @@ test.describe("Flow A, D, E: Full Author Lifecycle & Editorial UX", () => {
     await request.post(`http://localhost:8000/api/v1/projects/${projectId}/continuity/check`);
 
     await page.goto("http://localhost:3000");
-    const selectElem = page.locator("select");
-    await selectElem.selectOption(projectId);
+    const selectElem2 = page.locator("select").first();
+    await selectElem2.selectOption(projectId);
 
     // Click jump to earlier evidence
     const jumpLink = page.locator("aside").getByText("Jump to text").first();

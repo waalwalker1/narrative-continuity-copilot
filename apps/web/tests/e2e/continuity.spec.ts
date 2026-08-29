@@ -36,7 +36,7 @@ test.describe("Flow B: Continuity Review & Author Decision", () => {
     await expect(page.locator("header")).toContainText("Narrative Copilot");
 
     // Select project if needed
-    const selectElem = page.locator("select");
+    const selectElem = page.locator("select").first();
     await selectElem.selectOption(projectId);
 
     // Verify Chapter 1 is loaded
@@ -55,7 +55,7 @@ test.describe("Flow B: Continuity Review & Author Decision", () => {
 
     // Reload page to verify suppression persistence
     await page.reload();
-    await page.locator("select").selectOption(projectId);
+    await page.locator("select").first().selectOption(projectId);
     await expect(page.locator("aside")).toContainText("No continuity issues detected in current manuscript revision.");
   });
 });
