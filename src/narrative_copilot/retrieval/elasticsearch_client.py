@@ -289,12 +289,45 @@ class ElasticsearchEngine:
             client = Elasticsearch(self.es_url)
             must_clauses: list[dict[str, Any]] = [
                 {"match": {"canonical_text": query}},
-                {"term": {"project_id": project_id}},
             ]
+            if project_id:
+                must_clauses.append(
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"project_id": project_id}},
+                                {"term": {"project_id.keyword": project_id}},
+                                {"match_phrase": {"project_id": project_id}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                )
             if revision_id:
-                must_clauses.append({"term": {"revision_id": revision_id}})
+                must_clauses.append(
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"revision_id": revision_id}},
+                                {"term": {"revision_id.keyword": revision_id}},
+                                {"match_phrase": {"revision_id": revision_id}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                )
             if memory_types:
-                must_clauses.append({"terms": {"memory_type": memory_types}})
+                must_clauses.append(
+                    {
+                        "bool": {
+                            "should": [
+                                {"terms": {"memory_type": memory_types}},
+                                {"terms": {"memory_type.keyword": memory_types}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                )
 
             try:
                 res = client.search(

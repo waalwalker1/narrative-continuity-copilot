@@ -69,7 +69,7 @@ test.describe("Flow C: Incremental Scoped Edit & Anchor Persistence", () => {
 
     // 4. Reload Browser to verify full state persistence
     await page.reload();
-    await page.locator("select").selectOption(projectId);
+    await page.locator("select").first().selectOption(projectId);
 
     // Verify structure still has all three chapters
     await expect(page.locator("nav")).toContainText("Chapter 1: The First Realm");
