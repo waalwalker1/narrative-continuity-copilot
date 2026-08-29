@@ -467,39 +467,113 @@ async def index_project(
 
         vectors = [vector_map.get(b.unit_id, []) for b in block_units]
 
-        # Memory invalidation and incremental extraction
+        # Memory invalidation and target-revision evidence re-anchoring
         base_memory = await repo.get_story_memory(project_id, base_rev_id)
         changed_block_ids = {b.unit_id for b in changed_blocks}
         base_anchors = await repo.get_anchors(base_rev_id)
-        invalidated_anchor_ids = {
-            a.anchor_id for a in base_anchors if a.block_id in changed_block_ids
-        }
+        target_anchor_by_block = {a.block_id: a for a in anchors}
 
-        retained_facts = [
-            FactAssertion(**{**f.model_dump(), "revision_id": target_rev})
-            for f in base_memory.facts
-            if not any(aid in invalidated_anchor_ids for aid in f.evidence_anchor_ids)
-        ]
-        retained_relations = [
-            RelationAssertion(**{**r.model_dump(), "revision_id": target_rev})
-            for r in base_memory.relations
-            if not any(aid in invalidated_anchor_ids for aid in r.evidence_anchor_ids)
-        ]
-        retained_events = [
-            TimelineEvent(**{**e.model_dump(), "revision_id": target_rev})
-            for e in base_memory.timeline_events
-            if not any(aid in invalidated_anchor_ids for aid in e.evidence_anchor_ids)
-        ]
-        retained_rules = [
-            WorldRule(**{**w.model_dump(), "revision_id": target_rev})
-            for w in base_memory.world_rules
-            if not any(aid in invalidated_anchor_ids for aid in w.evidence_anchor_ids)
-        ]
-        retained_threads = [
-            StoryThread(**{**t.model_dump(), "revision_id": target_rev})
-            for t in base_memory.story_threads
-            if not any(aid in invalidated_anchor_ids for aid in t.update_anchor_ids)
-        ]
+        reanchor_engine = ReanchoringEngine()
+        reanchor_map: dict[str, str | None] = {}
+        for base_anc in base_anchors:
+            if base_anc.block_id in changed_block_ids:
+                reanchor_map[base_anc.anchor_id] = None
+            else:
+                res = reanchor_engine.reanchor(base_anc, target_rev, block_units)
+                if res.status != "INVALIDATED" and res.updated_anchor is not None:
+                    matched_bid = res.updated_anchor.block_id
+                    if matched_bid in target_anchor_by_block:
+                        reanchor_map[base_anc.anchor_id] = target_anchor_by_block[
+                            matched_bid
+                        ].anchor_id
+                    else:
+                        reanchor_map[base_anc.anchor_id] = None
+                else:
+                    reanchor_map[base_anc.anchor_id] = None
+
+        def rewrite_evidence(old_aids: list[str]) -> list[str] | None:
+            new_aids = []
+            for aid in old_aids:
+                mapped = reanchor_map.get(aid)
+                if not mapped:
+                    return None
+                new_aids.append(mapped)
+            return new_aids
+
+        retained_facts: list[FactAssertion] = []
+        for f in base_memory.facts:
+            new_ev = rewrite_evidence(f.evidence_anchor_ids)
+            if new_ev is not None:
+                retained_facts.append(
+                    FactAssertion(
+                        **{
+                            **f.model_dump(exclude={"fact_id"}),
+                            "revision_id": target_rev,
+                            "evidence_anchor_ids": new_ev,
+                        }
+                    )
+                )
+
+        retained_relations: list[RelationAssertion] = []
+        for r in base_memory.relations:
+            new_ev = rewrite_evidence(r.evidence_anchor_ids)
+            if new_ev is not None:
+                retained_relations.append(
+                    RelationAssertion(
+                        **{
+                            **r.model_dump(exclude={"relation_id"}),
+                            "revision_id": target_rev,
+                            "evidence_anchor_ids": new_ev,
+                        }
+                    )
+                )
+
+        retained_events: list[TimelineEvent] = []
+        for e in base_memory.timeline_events:
+            new_ev = rewrite_evidence(e.evidence_anchor_ids)
+            if new_ev is not None:
+                retained_events.append(
+                    TimelineEvent(
+                        **{
+                            **e.model_dump(exclude={"event_id"}),
+                            "revision_id": target_rev,
+                            "evidence_anchor_ids": new_ev,
+                        }
+                    )
+                )
+
+        retained_rules: list[WorldRule] = []
+        for w in base_memory.world_rules:
+            new_ev = rewrite_evidence(w.evidence_anchor_ids)
+            if new_ev is not None:
+                retained_rules.append(
+                    WorldRule(
+                        **{
+                            **w.model_dump(exclude={"rule_id"}),
+                            "revision_id": target_rev,
+                            "evidence_anchor_ids": new_ev,
+                        }
+                    )
+                )
+
+        retained_threads: list[StoryThread] = []
+        for t in base_memory.story_threads:
+            new_intro = reanchor_map.get(t.introduced_at_anchor) if t.introduced_at_anchor else None
+            if t.introduced_at_anchor and not new_intro:
+                continue
+            new_updates = rewrite_evidence(t.update_anchor_ids) if t.update_anchor_ids else []
+            if t.update_anchor_ids and new_updates is None:
+                continue
+            retained_threads.append(
+                StoryThread(
+                    **{
+                        **t.model_dump(exclude={"thread_id"}),
+                        "revision_id": target_rev,
+                        "introduced_at_anchor": new_intro or t.introduced_at_anchor,
+                        "update_anchor_ids": new_updates or [],
+                    }
+                )
+            )
 
         changed_anchors = [a for a in anchors if a.block_id in changed_block_ids]
         fresh_memory = await story_memory_extractor.extract_memory(
@@ -561,8 +635,27 @@ async def index_project(
     await repo.save_world_rules(memory.world_rules)
     await repo.save_story_threads(memory.story_threads)
 
-    # Index structured memory documents into Elasticsearch MEMORY_INDEX
+    # Index all 6 structured memory types into Elasticsearch MEMORY_INDEX
     memory_docs: list[dict[str, Any]] = []
+
+    for ent in memory.entities:
+        memory_docs.append(
+            {
+                "doc_id": ent.entity_id,
+                "project_id": project_id,
+                "revision_id": target_rev,
+                "memory_type": "entity",
+                "subject_entity_id": ent.entity_id,
+                "canonical_text": f"{ent.canonical_name}: {ent.description or ''} {', '.join(ent.aliases or [])}".strip(),
+                "vector": [],
+                "entity_ids": [ent.entity_id],
+                "aliases": ent.aliases or [],
+                "temporal_scope": "GLOBAL",
+                "narrative_scope": "GLOBAL_CANON",
+                "canonical_status": ent.canonical_status.value,
+                "evidence_anchor_ids": ent.evidence_anchor_ids or [],
+            }
+        )
     for f in memory.facts:
         memory_docs.append(
             {
@@ -576,7 +669,7 @@ async def index_project(
                 "entity_ids": [f.subject_entity_id]
                 + ([f.object_entity_id] if f.object_entity_id else []),
                 "aliases": [],
-                "temporal_scope": f.temporal_scope,
+                "temporal_scope": f.temporal_scope or "GLOBAL",
                 "narrative_scope": f.narrative_scope.value,
                 "canonical_status": f.canonical_status.value,
                 "evidence_anchor_ids": f.evidence_anchor_ids,
@@ -590,14 +683,32 @@ async def index_project(
                 "revision_id": target_rev,
                 "memory_type": "relation",
                 "subject_entity_id": r.subject_entity_id,
-                "canonical_text": f"{r.relation_type} -> {r.object_entity_id}",
+                "canonical_text": f"{r.subject_entity_id} {r.relation_type} {r.object_entity_id}",
                 "vector": [],
                 "entity_ids": [r.subject_entity_id, r.object_entity_id],
                 "aliases": [],
-                "temporal_scope": r.temporal_validity,
+                "temporal_scope": r.temporal_validity or "GLOBAL",
                 "narrative_scope": r.narrative_scope.value,
                 "canonical_status": r.epistemic_status.value,
                 "evidence_anchor_ids": r.evidence_anchor_ids,
+            }
+        )
+    for e in memory.timeline_events:
+        memory_docs.append(
+            {
+                "doc_id": e.event_id,
+                "project_id": project_id,
+                "revision_id": target_rev,
+                "memory_type": "timeline_event",
+                "subject_entity_id": e.primary_character_id or "timeline_event",
+                "canonical_text": f"{e.description} (Order: {e.chronological_order})",
+                "vector": [],
+                "entity_ids": [e.primary_character_id] if e.primary_character_id else [],
+                "aliases": [],
+                "temporal_scope": str(e.chronological_order),
+                "narrative_scope": e.narrative_scope.value,
+                "canonical_status": e.epistemic_status.value,
+                "evidence_anchor_ids": e.evidence_anchor_ids,
             }
         )
     for w in memory.world_rules:
@@ -606,9 +717,9 @@ async def index_project(
                 "doc_id": w.rule_id,
                 "project_id": project_id,
                 "revision_id": target_rev,
-                "memory_type": "rule",
+                "memory_type": "world_rule",
                 "subject_entity_id": "world_rule",
-                "canonical_text": w.rule_statement,
+                "canonical_text": f"{w.rule_statement} (Exceptions: {', '.join(w.exceptions or [])})",
                 "vector": [],
                 "entity_ids": [],
                 "aliases": [],
@@ -618,6 +729,33 @@ async def index_project(
                 "evidence_anchor_ids": w.evidence_anchor_ids,
             }
         )
+    for t in memory.story_threads:
+        memory_docs.append(
+            {
+                "doc_id": t.thread_id,
+                "project_id": project_id,
+                "revision_id": target_rev,
+                "memory_type": "story_thread",
+                "subject_entity_id": "story_thread",
+                "canonical_text": f"{t.title}: {t.description or ''} (Status: {t.status.value})",
+                "vector": [],
+                "entity_ids": t.character_ids or [],
+                "aliases": [],
+                "temporal_scope": "GLOBAL",
+                "narrative_scope": "GLOBAL_CANON",
+                "canonical_status": t.status.value,
+                "evidence_anchor_ids": ([t.introduced_at_anchor] if t.introduced_at_anchor else [])
+                + (t.update_anchor_ids or []),
+            }
+        )
+
+    # Compute dense semantic vectors for memory documents
+    if memory_docs:
+        mem_texts = [d["canonical_text"] for d in memory_docs]
+        mem_vecs = await embedding_provider.aencode(mem_texts)
+        for i, d in enumerate(memory_docs):
+            d["vector"] = mem_vecs[i] if i < len(mem_vecs) else []
+
     await es_engine.index_memory_bulk(memory_docs)
 
     log_privacy_safe(

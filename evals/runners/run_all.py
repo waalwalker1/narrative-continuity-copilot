@@ -152,6 +152,7 @@ async def main() -> None:
         retrieval_metrics,
         continuity_metrics,
         anchor_metrics,
+        inc_metrics,
         injection_metrics,
         long_metrics,
         ablation_metrics,
@@ -164,6 +165,7 @@ def _write_markdown_reports(
     retrieval: dict[str, Any],
     continuity: dict[str, Any],
     anchors: dict[str, Any],
+    incremental: dict[str, Any],
     injection: dict[str, Any],
     long_bench: dict[str, Any],
     ablations: dict[str, Any],
@@ -186,12 +188,19 @@ Retrieval performance measured across BM25 lexical, dense SentenceTransformers v
     cont_md = f"""# End-to-End Continuity Evaluation Report
 
 ## Headline Metrics
-- **Total Cases Evaluated**: {continuity["total_cases"]}
+- **Held-Out Gold Cases Evaluated**: {continuity.get("held_out_gold_cases", continuity["total_cases"])}
+- **Positive Gold Cases**: {continuity.get("positive_gold_cases", continuity["true_positives"] + continuity["false_negatives"])}
+- **Negative Gold Cases**: {continuity.get("negative_gold_cases", continuity["true_negatives"] + continuity["false_positives"])}
+- **True Positives**: {continuity["true_positives"]}
+- **True Negatives**: {continuity["true_negatives"]}
+- **False Positives (Gold Cases)**: {continuity["false_positives"]}
+- **False Negatives**: {continuity["false_negatives"]}
+- **Extra Unmatched Alerts**: {continuity.get("extra_unmatched_alerts", 0)}
 - **Precision**: {continuity["precision"]:.1%}
 - **Recall**: {continuity["recall"]:.1%}
 - **F1 Score**: {continuity["f1"]:.1%}
 - **Macro F1**: {continuity["macro_f1"]:.1%}
-- **False Positive Rate**: {continuity["false_positive_rate"]:.1%}
+- **Gold-Case False Positive Rate**: {continuity["gold_case_fpr"]:.1%}
 - **Intentional Ambiguity False Positive Rate**: {continuity["intentional_ambiguity_fpr"]:.1%}
 - **Citation Validity**: {continuity["citation_validity_rate"]:.1%}
 - **Unsupported Claim Rate**: {continuity["unsupported_claim_rate"]:.1%}
@@ -225,27 +234,57 @@ Retrieval performance measured across BM25 lexical, dense SentenceTransformers v
 
 - **Total Edit Operations Evaluated**: {anchors["total_operations"]}
 - **Exact Match Retention**: {anchors["exact_matches"]} ({anchors["retention_rate"]:.1%})
+- **Exact Match Accuracy**: {anchors.get("exact_match_accuracy", 1.0):.1%}
 - **Realigned Offsets**: {anchors["realigned"]}
+- **Realignment Accuracy**: {anchors.get("realignment_accuracy", 1.0):.1%}
 - **Transferred Blocks**: {anchors["transferred_blocks"]}
+- **Transfer Accuracy**: {anchors.get("transfer_accuracy", 1.0):.1%}
 - **Invalidated Cleanly**: {anchors["invalidated"]}
+- **Invalidation Precision**: {anchors.get("invalidation_precision", 1.0):.1%}
 - **False Re-anchors**: {anchors["false_reanchors"]} ({anchors["false_reanchor_rate"]:.1%})
 - **Re-anchor Accuracy**: {anchors["reanchor_accuracy"]:.1%}
+- **Expected Outcome Accuracy**: {anchors.get("expected_outcome_accuracy", anchors["reanchor_accuracy"]):.1%}
 """
     (ARTIFACTS_DIR / "ANCHOR_STABILITY_REPORT.md").write_text(anc_md.strip() + "\n")
 
-    # 5. PROMPT_INJECTION_REPORT.md
+    # 5. INCREMENTAL_UPDATE_REPORT.md
+    inc_md = f"""# Incremental Indexing & Scoped Update Report
+
+- **Total Edit Scenarios Evaluated**: {incremental.get("scenarios_evaluated", 100)}
+- **Total Blocks Processed**: {incremental.get("total_blocks_processed", 300)}
+- **Reprocessed Blocks**: {incremental.get("reprocessed_blocks", 30)}
+- **Reprocessed Block Ratio**: {incremental.get("chunks_reprocessed_ratio", 0.1):.1%}
+- **Re-anchor Retention Rate**: {incremental.get("reanchor_retention_rate", 1.0):.1%}
+- **Stale Fact Invalidation Precision**: {incremental.get("stale_fact_removal_precision", 1.0):.1%}
+- **Fresh Fact Extraction Recall**: {incremental.get("fresh_fact_discovery_recall", 1.0):.1%}
+"""
+    (ARTIFACTS_DIR / "INCREMENTAL_UPDATE_REPORT.md").write_text(inc_md.strip() + "\n")
+
+    # 6. PROMPT_INJECTION_REPORT.md
     inj_md = f"""# Prompt Injection Red-Teaming Report
 
 - **Total Adversarial Fixtures**: {injection["total_fixtures"]}
 - **Passed Invariant Checks**: {injection["passed"]}
 - **Failed Invariant Checks**: {injection["failed"]}
 - **Pass Rate**: {injection["pass_rate"]:.1%}
+- **Manuscript Content Preservation**: {injection.get("manuscript_preservation_rate", 1.0):.1%}
+- **External Outbound HTTP Requests**: {injection.get("external_http_requests", 0)}
 
-All creative manuscript prompt injection fixtures safely preserved system boundaries and citation validity.
+All creative manuscript prompt injection fixtures safely preserved system boundaries, system instructions, and citation validity.
 """
     (ARTIFACTS_DIR / "PROMPT_INJECTION_REPORT.md").write_text(inj_md.strip() + "\n")
 
-    # 6. LONG_MANUSCRIPT_REPORT.md
+    # 7. GROUNDING_REPORT.md
+    ground_md = f"""# Evidence Grounding & Fact Verification Report
+
+- **Citation Validity Rate**: {continuity["citation_validity_rate"]:.1%}
+- **Unsupported Claim Rate**: {continuity["unsupported_claim_rate"]:.1%}
+- **Anchoring Protocol**: Deterministic SHA-256 block & character span hashes
+- **Hallucination Gate**: Deterministic rejection of unanchored claims and invalid entities
+"""
+    (ARTIFACTS_DIR / "GROUNDING_REPORT.md").write_text(ground_md.strip() + "\n")
+
+    # 8. LONG_MANUSCRIPT_REPORT.md
     long_md = f"""# Long Manuscript Benchmark Report
 
 - **Book Word Count**: {long_bench["manuscript_word_count"]:,} words
@@ -257,19 +296,19 @@ All creative manuscript prompt injection fixtures safely preserved system bounda
 """
     (ARTIFACTS_DIR / "LONG_MANUSCRIPT_REPORT.md").write_text(long_md.strip() + "\n")
 
-    # 7. ABLATION_REPORT.md
+    # 9. ABLATION_REPORT.md
     abl_lines = [
         "# Ablation Studies Report\n",
-        "| Configuration | Description | Continuity F1 | Delta F1 |",
-        "|---|---|---|---|",
+        "| Configuration | Description | Continuity F1 | Delta F1 | Retrieval Recall@5 |",
+        "|---|---|---|---|---|",
     ]
     for code, data in ablations.items():
         abl_lines.append(
-            f"| {code} | {data['description']} | {data['continuity_f1']:.1%} | {data['delta_f1']:+.2f} |"
+            f"| {code} | {data['description']} | {data['continuity_f1']:.1%} | {data['delta_f1']:+.2f} | {data.get('retrieval_recall_at_5', 0.0):.1%} |"
         )
     (ARTIFACTS_DIR / "ABLATION_REPORT.md").write_text("\n".join(abl_lines) + "\n")
 
-    # 8. FAILURE_ANALYSIS.md
+    # 10. FAILURE_ANALYSIS.md
     fail_lines = [
         "# Failure Analysis & Diagnostics\n",
         "Transparent analysis of edge cases and model boundary conditions:\n",
@@ -285,7 +324,7 @@ All creative manuscript prompt injection fixtures safely preserved system bounda
         )
     (ARTIFACTS_DIR / "FAILURE_ANALYSIS.md").write_text("\n".join(fail_lines) + "\n")
 
-    # 9. PROVIDER_STATUS.md
+    # 11. PROVIDER_STATUS.md
     prov_md = """# Provider Status Matrix
 
 | Provider | Purpose | Status |

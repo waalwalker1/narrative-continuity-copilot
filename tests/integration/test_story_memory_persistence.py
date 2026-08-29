@@ -202,3 +202,147 @@ async def test_api_memory_endpoint_returns_all_models() -> None:
         assert "story_threads" in mem
         assert len(mem["entities"]) >= 1
         assert len(mem["facts"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_memory_search_retrieves_all_six_types() -> None:
+    """Verifies that Elasticsearch MEMORY_INDEX indexes and retrieves entities, facts, relations, timeline events, world rules, and story threads."""
+    await db.init_db()
+    await es_engine.ensure_indices()
+
+    proj_id = "proj_6_types_test"
+    rev_id = "rev_6_types_test"
+
+    memory_docs = [
+        {
+            "doc_id": "ent_1",
+            "project_id": proj_id,
+            "revision_id": rev_id,
+            "memory_type": "entity",
+            "subject_entity_id": "ent_1",
+            "canonical_text": "Lord Arthur Vance: Lord of Castle Oakvale Artie",
+            "vector": [],
+            "entity_ids": ["ent_1"],
+            "aliases": ["Artie"],
+            "temporal_scope": "GLOBAL",
+            "narrative_scope": "GLOBAL_CANON",
+            "canonical_status": "PROPOSED",
+            "evidence_anchor_ids": ["anc_1"],
+        },
+        {
+            "doc_id": "fact_1",
+            "project_id": proj_id,
+            "revision_id": rev_id,
+            "memory_type": "fact",
+            "subject_entity_id": "ent_1",
+            "canonical_text": "eye_color: blue",
+            "vector": [],
+            "entity_ids": ["ent_1"],
+            "aliases": [],
+            "temporal_scope": "GLOBAL",
+            "narrative_scope": "GLOBAL_CANON",
+            "canonical_status": "PROPOSED",
+            "evidence_anchor_ids": ["anc_1"],
+        },
+        {
+            "doc_id": "rel_1",
+            "project_id": proj_id,
+            "revision_id": rev_id,
+            "memory_type": "relation",
+            "subject_entity_id": "ent_1",
+            "canonical_text": "ent_1 sister_of ent_2",
+            "vector": [],
+            "entity_ids": ["ent_1", "ent_2"],
+            "aliases": [],
+            "temporal_scope": "GLOBAL",
+            "narrative_scope": "GLOBAL_CANON",
+            "canonical_status": "OBSERVED",
+            "evidence_anchor_ids": ["anc_1"],
+        },
+        {
+            "doc_id": "event_1",
+            "project_id": proj_id,
+            "revision_id": rev_id,
+            "memory_type": "timeline_event",
+            "subject_entity_id": "ent_1",
+            "canonical_text": "Battle at the Siege of Dunhaven (Order: 1)",
+            "vector": [],
+            "entity_ids": ["ent_1"],
+            "aliases": [],
+            "temporal_scope": "1",
+            "narrative_scope": "GLOBAL_CANON",
+            "canonical_status": "OBSERVED",
+            "evidence_anchor_ids": ["anc_1"],
+        },
+        {
+            "doc_id": "rule_1",
+            "project_id": proj_id,
+            "revision_id": rev_id,
+            "memory_type": "world_rule",
+            "subject_entity_id": "world_rule",
+            "canonical_text": "Magic cannot penetrate solid iron (Exceptions: starmetal)",
+            "vector": [],
+            "entity_ids": [],
+            "aliases": [],
+            "temporal_scope": "GLOBAL",
+            "narrative_scope": "GLOBAL_CANON",
+            "canonical_status": "AUTHOR_CONFIRMED",
+            "evidence_anchor_ids": ["anc_1"],
+        },
+        {
+            "doc_id": "thread_1",
+            "project_id": proj_id,
+            "revision_id": rev_id,
+            "memory_type": "story_thread",
+            "subject_entity_id": "story_thread",
+            "canonical_text": "Lost Crown of Dunhaven: Unresolved quest (Status: OPEN)",
+            "vector": [],
+            "entity_ids": ["ent_1"],
+            "aliases": [],
+            "temporal_scope": "GLOBAL",
+            "narrative_scope": "GLOBAL_CANON",
+            "canonical_status": "OPEN",
+            "evidence_anchor_ids": ["anc_1"],
+        },
+    ]
+
+    await es_engine.index_memory_bulk(memory_docs)
+
+    # 1. Search for entity
+    res_ent = await es_engine.search_memory(
+        "Arthur Vance", project_id=proj_id, revision_id=rev_id, memory_types=["entity"]
+    )
+    assert len(res_ent) >= 1
+
+    # 2. Search for fact
+    res_fact = await es_engine.search_memory(
+        "blue", project_id=proj_id, revision_id=rev_id, memory_types=["fact"]
+    )
+    assert len(res_fact) >= 1
+
+    # 3. Search for relation
+    res_rel = await es_engine.search_memory(
+        "sister_of", project_id=proj_id, revision_id=rev_id, memory_types=["relation"]
+    )
+    assert len(res_rel) >= 1
+
+    # 4. Search for timeline event
+    res_event = await es_engine.search_memory(
+        "Dunhaven", project_id=proj_id, revision_id=rev_id, memory_types=["timeline_event"]
+    )
+    assert len(res_event) >= 1
+
+    # 5. Search for world rule
+    res_rule = await es_engine.search_memory(
+        "penetrate solid iron",
+        project_id=proj_id,
+        revision_id=rev_id,
+        memory_types=["world_rule"],
+    )
+    assert len(res_rule) >= 1
+
+    # 6. Search for story thread
+    res_thread = await es_engine.search_memory(
+        "Lost Crown", project_id=proj_id, revision_id=rev_id, memory_types=["story_thread"]
+    )
+    assert len(res_thread) >= 1

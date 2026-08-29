@@ -123,7 +123,7 @@ class ContinuityEvaluator:
                 matched_idx = -1
 
                 for idx, al in enumerate(available_alerts):
-                    # Match by class and exact anchor pair (or predicate if anchors resolve)
+                    # Match strictly by class and exact two-anchor gold evidence pair
                     class_matches = (
                         al.conflict_class.value == case_class or al.conflict_class == case_class
                     )
@@ -131,18 +131,12 @@ class ContinuityEvaluator:
                     if gold_aid_a and gold_aid_b:
                         alert_anchors = {al.evidence_a.anchor_id, al.evidence_b.anchor_id}
                         gold_anchors = {gold_aid_a, gold_aid_b}
-                        if (
-                            alert_anchors == gold_anchors
-                            or gold_aid_a in alert_anchors
-                            or gold_aid_b in alert_anchors
-                        ):
+                        if alert_anchors == gold_anchors:
                             anchors_match = True
                     else:
                         anchors_match = True
 
-                    if class_matches and (
-                        anchors_match or case["predicate"].lower() in al.explanation.lower()
-                    ):
+                    if class_matches and anchors_match:
                         matched_alert = al
                         matched_idx = idx
                         break
@@ -187,9 +181,9 @@ class ContinuityEvaluator:
                         }
                     )
 
-            # Any remaining unconsumed alerts are false positives
+            # Any remaining unconsumed alerts are extra unmatched alerts
+            extra_unmatched_alerts = len(available_alerts)
             for leftover in available_alerts:
-                false_positives += 1
                 cls_str = (
                     leftover.conflict_class.value
                     if hasattr(leftover.conflict_class, "value")
@@ -197,10 +191,11 @@ class ContinuityEvaluator:
                 )
                 per_class_stats[cls_str]["fp"] += 1
 
-        precision = true_positives / max(true_positives + false_positives, 1)
+        total_fp_for_precision = false_positives + extra_unmatched_alerts
+        precision = true_positives / max(true_positives + total_fp_for_precision, 1)
         recall = true_positives / max(true_positives + false_negatives, 1)
         f1 = (2 * precision * recall) / max(precision + recall, 1e-6)
-        fp_rate = false_positives / max(false_positives + true_negatives, 1)
+        gold_case_fpr = false_positives / max(false_positives + true_negatives, 1)
         ambiguity_fpr = intentional_ambiguity_fps / max(intentional_ambiguity_total, 1)
 
         # Macro F1 & per-class breakdown
@@ -208,10 +203,6 @@ class ContinuityEvaluator:
         class_breakdown = {}
         for cname, counts in per_class_stats.items():
             if counts["tp"] + counts["fn"] == 0 and counts["tn"] > 0:
-                # Pure hard negative / intentional ambiguity class
-                c_p = 1.0 if counts["fp"] == 0 else 0.0
-                c_r = 1.0 if counts["fp"] == 0 else 0.0
-                c_f1 = 1.0 if counts["fp"] == 0 else 0.0
                 specificity = counts["tn"] / max(counts["tn"] + counts["fp"], 1)
                 class_breakdown[cname] = {
                     "precision": "NOT_APPLICABLE",
@@ -242,23 +233,26 @@ class ContinuityEvaluator:
                 }
 
         macro_f1 = sum(class_f1s) / max(len(class_f1s), 1)
-
-        gold_cases_total = true_positives + true_negatives + false_negatives
-        extra_alerts = false_positives
+        gold_cases_total = true_positives + true_negatives + false_positives + false_negatives
+        positives_total = true_positives + false_negatives
+        negatives_total = true_negatives + false_positives
 
         return {
             "total_cases": gold_cases_total,
-            "gold_cases": gold_cases_total,
-            "extra_unmatched_alerts": extra_alerts,
+            "held_out_gold_cases": gold_cases_total,
+            "positive_gold_cases": positives_total,
+            "negative_gold_cases": negatives_total,
             "true_positives": true_positives,
             "false_positives": false_positives,
             "true_negatives": true_negatives,
             "false_negatives": false_negatives,
+            "extra_unmatched_alerts": extra_unmatched_alerts,
             "precision": round(precision, 4),
             "recall": round(recall, 4),
             "f1": round(f1, 4),
             "macro_f1": round(macro_f1, 4),
-            "false_positive_rate": round(fp_rate, 4),
+            "gold_case_fpr": round(gold_case_fpr, 4),
+            "false_positive_rate": round(gold_case_fpr, 4),
             "intentional_ambiguity_fpr": round(ambiguity_fpr, 4),
             "citation_validity_rate": round(
                 citation_valid_count / max(total_alerts_generated, 1), 4

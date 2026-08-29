@@ -24,6 +24,13 @@ class AnchorBenchmarkRunner:
         false_reanchor_count = 0
         total_ops = 0
 
+        expected_exact_count = 0
+        expected_realigned_count = 0
+        expected_transferred_count = 0
+        expected_invalidated_count = 0
+        correct_outcome_count = 0
+        correct_invalidated_count = 0
+
         # Run 9 mutation types across batches
         for i in range(num_ops):
             total_ops += 1
@@ -175,6 +182,15 @@ class AnchorBenchmarkRunner:
                     )
                 ]
 
+            if expected_status == "EXACT_MATCH":
+                expected_exact_count += 1
+            elif expected_status == "REALIGNED":
+                expected_realigned_count += 1
+            elif expected_status == "TRANSFERRED_BLOCK":
+                expected_transferred_count += 1
+            elif expected_status == "INVALIDATED":
+                expected_invalidated_count += 1
+
             result = self.engine.reanchor(original_anchor, "rev_2", target_blocks)
 
             if result.status == "EXACT_MATCH":
@@ -186,6 +202,11 @@ class AnchorBenchmarkRunner:
             elif result.status == "INVALIDATED":
                 invalidated_count += 1
 
+            if result.status == expected_status:
+                correct_outcome_count += 1
+                if expected_status == "INVALIDATED":
+                    correct_invalidated_count += 1
+
             if expected_status == "INVALIDATED" and result.status != "INVALIDATED":
                 false_reanchor_count += 1
 
@@ -194,6 +215,11 @@ class AnchorBenchmarkRunner:
         retention_rate = exact_retention_count / max(total_ops, 1)
         reanchor_accuracy = (successful_reanchors + invalidated_count) / max(total_ops, 1)
         false_reanchor_rate = false_reanchor_count / max(total_ops, 1)
+        exact_match_accuracy = exact_retention_count / max(expected_exact_count, 1)
+        realignment_accuracy = realigned_count / max(expected_realigned_count, 1)
+        transfer_accuracy = transferred_count / max(expected_transferred_count, 1)
+        invalidation_precision = correct_invalidated_count / max(invalidated_count, 1)
+        expected_outcome_accuracy = correct_outcome_count / max(total_ops, 1)
 
         return {
             "total_operations": total_ops,
@@ -205,5 +231,9 @@ class AnchorBenchmarkRunner:
             "retention_rate": round(retention_rate, 4),
             "reanchor_accuracy": round(reanchor_accuracy, 4),
             "false_reanchor_rate": round(false_reanchor_rate, 4),
-            "invalidation_precision": 1.0,
+            "exact_match_accuracy": round(exact_match_accuracy, 4),
+            "realignment_accuracy": round(realignment_accuracy, 4),
+            "transfer_accuracy": round(transfer_accuracy, 4),
+            "invalidation_precision": round(invalidation_precision, 4),
+            "expected_outcome_accuracy": round(expected_outcome_accuracy, 4),
         }

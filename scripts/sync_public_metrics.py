@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Synchronizes measured synthetic benchmark results from artifacts/evals/latest/summary.json
-into the public README.md between canonical markers.
+into public documentation: README.md, docs/RELEASE_VALIDATION.md, and docs/SECURITY_RELEASE_AUDIT.md.
 Supports --write and --check modes for CI gate enforcement.
 """
 
@@ -14,9 +14,18 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 SUMMARY_FILE = BASE_DIR / "artifacts" / "evals" / "latest" / "summary.json"
 README_FILE = BASE_DIR / "README.md"
+RELEASE_VAL_FILE = BASE_DIR / "docs" / "RELEASE_VALIDATION.md"
+SECURITY_AUDIT_FILE = BASE_DIR / "docs" / "SECURITY_RELEASE_AUDIT.md"
 
 MARKER_START = "<!-- METRIC_BLOCK_START -->"
 MARKER_END = "<!-- METRIC_BLOCK_END -->"
+
+OBSOLETE_PATTERNS = [
+    r"\b36\s+story\s+packs\b",
+    r"\b216\s+(?:benchmark\s+)?cases\b",
+    r"\b25/11\s+split\b",
+    r"\b83\.3%\b",
+]
 
 
 def generate_metric_markdown(summary: dict) -> str:
@@ -47,6 +56,21 @@ def generate_metric_markdown(summary: dict) -> str:
     return md.strip()
 
 
+def check_stale_patterns(files: list[Path]) -> list[str]:
+    violations = []
+    for fpath in files:
+        if not fpath.exists():
+            continue
+        content = fpath.read_text(encoding="utf-8")
+        for pat in OBSOLETE_PATTERNS:
+            match = re.search(pat, content, re.IGNORECASE)
+            if match:
+                violations.append(
+                    f"{fpath}: matches obsolete pattern '{pat}' (found '{match.group(0)}')"
+                )
+    return violations
+
+
 def sync_metrics(write_mode: bool = False) -> bool:
     if not SUMMARY_FILE.exists():
         print(f"Error: summary.json not found at {SUMMARY_FILE}. Run benchmark first.")
@@ -55,42 +79,60 @@ def sync_metrics(write_mode: bool = False) -> bool:
     summary = json.loads(SUMMARY_FILE.read_text(encoding="utf-8"))
     new_metrics_md = generate_metric_markdown(summary)
 
-    readme_content = README_FILE.read_text(encoding="utf-8")
+    target_files = [README_FILE]
+    all_ok = True
 
-    pattern = re.compile(
-        re.escape(MARKER_START) + r".*?" + re.escape(MARKER_END),
-        re.DOTALL,
-    )
+    # 1. Stale patterns check
+    stale_violations = check_stale_patterns([README_FILE, RELEASE_VAL_FILE, SECURITY_AUDIT_FILE])
+    if stale_violations:
+        print("Error: Obsolete metric/dataset claims detected:")
+        for v in stale_violations:
+            print(f"  - {v}")
+        all_ok = False
 
-    if not pattern.search(readme_content):
-        print(f"Error: Could not find markers {MARKER_START} and {MARKER_END} in {README_FILE}.")
-        return False
+    # 2. Synchronize target markdown files with metric blocks
+    for doc in target_files:
+        if not doc.exists():
+            print(f"Error: Target documentation file {doc} does not exist.")
+            all_ok = False
+            continue
 
-    updated_readme = pattern.sub(
-        f"{MARKER_START}\n{new_metrics_md}\n{MARKER_END}",
-        readme_content,
-    )
+        doc_content = doc.read_text(encoding="utf-8")
+        pattern = re.compile(
+            re.escape(MARKER_START) + r".*?" + re.escape(MARKER_END),
+            re.DOTALL,
+        )
 
-    if write_mode:
-        README_FILE.write_text(updated_readme, encoding="utf-8")
-        print(f"Successfully synchronized benchmark metrics into {README_FILE}.")
-        return True
-    else:
-        # Check mode
-        if readme_content.strip() != updated_readme.strip():
-            print(f"Error: README.md metrics are out of sync with {SUMMARY_FILE}.")
-            print("Run 'python scripts/sync_public_metrics.py --write' to synchronize.")
-            return False
-        print("README.md metrics are perfectly synchronized with summary.json.")
-        return True
+        if not pattern.search(doc_content):
+            print(f"Error: Could not find markers {MARKER_START} and {MARKER_END} in {doc}.")
+            all_ok = False
+            continue
+
+        updated_doc = pattern.sub(
+            f"{MARKER_START}\n{new_metrics_md}\n{MARKER_END}",
+            doc_content,
+        )
+
+        if write_mode:
+            doc.write_text(updated_doc, encoding="utf-8")
+            print(f"Successfully synchronized benchmark metrics into {doc.name}.")
+        else:
+            if doc_content.strip() != updated_doc.strip():
+                print(f"Error: {doc.name} metrics are out of sync with {SUMMARY_FILE}.")
+                print("Run 'python scripts/sync_public_metrics.py --write' to synchronize.")
+                all_ok = False
+            else:
+                print(f"{doc.name} metrics are perfectly synchronized with summary.json.")
+
+    return all_ok
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Synchronize public metrics into README.md")
+    parser = argparse.ArgumentParser(description="Synchronize public metrics into documentation")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--write", action="store_true", help="Write metrics to README.md")
+    group.add_argument("--write", action="store_true", help="Write metrics to documentation")
     group.add_argument(
-        "--check", action="store_true", help="Check if README.md metrics are up-to-date"
+        "--check", action="store_true", help="Check if documentation metrics are up-to-date"
     )
 
     args = parser.parse_args()

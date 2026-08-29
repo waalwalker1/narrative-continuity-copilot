@@ -1,6 +1,7 @@
 # Private build control plane & specifications (NEVER COMMIT)
 BUILD_SPEC.md
 FINAL_RELEASE_FREEZE_PASS.md
+FINAL_NARRATIVE_CONTINUITY_RELEASE_CORRECTION.md
 .build/
 
 # Python

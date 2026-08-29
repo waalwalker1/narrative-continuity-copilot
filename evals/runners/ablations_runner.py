@@ -143,6 +143,18 @@ class AblationRunner:
 
         for cfg in configs:
             res = await self._evaluate_single_config(cfg, held_out_packs)
+            if retrieval_metrics:
+                mode_key = cfg.retrieval_mode.value
+                if mode_key in retrieval_metrics:
+                    res["retrieval_recall_at_5"] = retrieval_metrics[mode_key].get(
+                        "recall_at_5", res["retrieval_recall_at_5"]
+                    )
+                    res["exact_anchor_hit_rate"] = retrieval_metrics[mode_key].get(
+                        "exact_anchor_hit_rate", 0.0
+                    )
+                    res["mrr"] = retrieval_metrics[mode_key].get("mrr", 0.0)
+                    res["ndcg_at_10"] = retrieval_metrics[mode_key].get("ndcg_at_10", 0.0)
+
             delta_f1 = round(res["continuity_f1"] - full_f1, 4)
             res["delta_f1"] = delta_f1
 
@@ -194,6 +206,27 @@ class AblationRunner:
                 title=pack["title"],
             )
 
+            def resolve_gold_anchor(
+                evidence_text: str,
+                cur_anchors: list[Any] = anchors,
+                cur_units: list[Any] = units,
+            ) -> str:
+                clean_target = evidence_text.lower().strip()
+                if not clean_target:
+                    return ""
+                for a in cur_anchors:
+                    if (
+                        clean_target in a.normalized_quote.lower()
+                        or a.normalized_quote.lower() in clean_target
+                    ):
+                        return a.anchor_id
+                for u in cur_units:
+                    if u.unit_type.value == "block" and clean_target in u.text.lower():
+                        for a in cur_anchors:
+                            if a.block_id == u.unit_id:
+                                return a.anchor_id
+                return ""
+
             memory = await memory_extractor.extract_memory(
                 project_id=story_id,
                 revision_id="rev_ablation",
@@ -231,15 +264,16 @@ class AblationRunner:
                 is_ambig = case.get("is_intentional_ambiguity", False)
                 case_class = case["conflict_class"]
 
-                # Check retrieval recall for this query
                 total_queries += 1
                 query_pred = case["predicate"].lower().replace("_", " ")
                 query_entity = case["subject_entity_name"].lower()
                 evidence_text = case.get("evidence_a_text", "").lower()
 
-                # Simulate/measure retrieval hit based on config mode
+                gold_aid_a = resolve_gold_anchor(case.get("evidence_a_text", ""))
+                gold_aid_b = resolve_gold_anchor(case.get("evidence_b_text", ""))
+
+                # Measure baseline retrieval hit
                 if config.use_raw_context_baseline:
-                    # In raw context baseline, evidence is retrieved if in the first block window
                     if units and evidence_text and evidence_text in units[0].text.lower():
                         retrieval_hits_5 += 1
                 elif config.retrieval_mode == RetrievalMode.BM25_ONLY:
@@ -258,11 +292,19 @@ class AblationRunner:
                 matched_alert = None
                 matched_idx = -1
                 for idx, al in enumerate(available_alerts):
-                    if (
-                        al.conflict_class.value == case_class
-                        or al.conflict_class == case_class
-                        or case["predicate"].lower() in al.explanation.lower()
-                    ):
+                    class_matches = (
+                        al.conflict_class.value == case_class or al.conflict_class == case_class
+                    )
+                    anchors_match = False
+                    if gold_aid_a and gold_aid_b:
+                        alert_anchors = {al.evidence_a.anchor_id, al.evidence_b.anchor_id}
+                        gold_anchors = {gold_aid_a, gold_aid_b}
+                        if alert_anchors == gold_anchors:
+                            anchors_match = True
+                    else:
+                        anchors_match = True
+
+                    if class_matches and anchors_match:
                         matched_alert = al
                         matched_idx = idx
                         break

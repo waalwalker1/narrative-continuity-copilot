@@ -32,7 +32,7 @@ jobs:
       - name: Python Typecheck (mypy)
         run: |
           uv run mypy src apps/api tests
-      - name: Frontend Typecheck
+      - name: Frontend Lint & Typecheck
         run: |
           npm run typecheck
 
@@ -48,13 +48,13 @@ jobs:
         uses: astral-sh/setup-uv@v3
       - name: Install dependencies
         run: uv sync --extra dev
-      - name: Run Tests with Coverage
+      - name: Run Unit, Property & Integration Tests with Coverage
         env:
           USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
-          PYTHONPATH=src:apps:. uv run pytest --cov=narrative_copilot --cov-report=term-missing --cov-report=xml tests/unit tests/property
+          PYTHONPATH=src:apps:. uv run pytest --cov=narrative_copilot --cov-report=term-missing --cov-report=xml --cov-fail-under=75 tests/unit tests/property tests/integration
 
-  retrieval-integration:
+  retrieval-full-stack:
     runs-on: ubuntu-latest
     services:
       elasticsearch:
@@ -80,14 +80,50 @@ jobs:
         uses: astral-sh/setup-uv@v3
       - name: Install dependencies
         run: uv sync --extra dev --extra cloud
-      - name: Run Integration Tests
+      - name: Run Full-Stack Retrieval Integration Tests
         env:
           ELASTICSEARCH_URL: http://localhost:9200
           USE_DETERMINISTIC_EMBEDDINGS: 1
         run: |
           PYTHONPATH=src:apps:. uv run pytest tests/integration
 
-  security-tests:
+  benchmark-full-stack:
+    runs-on: ubuntu-latest
+    services:
+      elasticsearch:
+        image: elasticsearch:8.14.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: false
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -s http://localhost:9200/_cluster/health | grep -q 'status'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Run Master Benchmark Suite
+        env:
+          ELASTICSEARCH_URL: http://localhost:9200
+          USE_DETERMINISTIC_EMBEDDINGS: 1
+        run: |
+          PYTHONPATH=src:apps:. uv run python evals/runners/run_all.py
+      - name: Check Metric Synchronization
+        run: |
+          PYTHONPATH=src:apps:. uv run python scripts/sync_public_metrics.py --check
+
+  security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +157,43 @@ jobs:
       - name: Build Web Application
         run: npm run build
 
-  benchmark-and-hygiene:
+  playwright-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Install dependencies
+        run: |
+          uv sync --extra dev
+          npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright E2E Tests
+        env:
+          USE_DETERMINISTIC_EMBEDDINGS: 1
+        run: npm run test:e2e
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and Validate Compose Stack
+        run: |
+          docker compose config
+          docker compose build
+
+  public-hygiene:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -133,14 +205,10 @@ jobs:
         uses: astral-sh/setup-uv@v3
       - name: Install dependencies
         run: uv sync --extra dev
-      - name: Run Evaluation Suite
-        env:
-          USE_DETERMINISTIC_EMBEDDINGS: 1
+      - name: Check Untracked Spec Files
         run: |
-          PYTHONPATH=src:apps:. uv run python evals/runners/run_all.py
-      - name: Check Metric Synchronization
-        env:
-          USE_DETERMINISTIC_EMBEDDINGS: 1
+          ! git ls-files | grep -E "(BUILD_SPEC|FINAL_.*RELEASE|eval_output\.json)"
+      - name: Check Public Metric Sync
         run: |
           PYTHONPATH=src:apps:. uv run python scripts/sync_public_metrics.py --check
 
@@ -148,11 +216,14 @@ jobs:
     needs:
       - lint-typecheck
       - backend-tests
-      - retrieval-integration
-      - security-tests
+      - retrieval-full-stack
+      - benchmark-full-stack
+      - security
       - frontend-quality
-      - benchmark-and-hygiene
+      - playwright-e2e
+      - docker-smoke
+      - public-hygiene
     runs-on: ubuntu-latest
     steps:
       - name: Release Gate Verdict
-        run: echo "All release gates passed successfully!"
+        run: echo "All 10 mandatory release gates passed successfully!"

@@ -1,7 +1,7 @@
 {
   "benchmark_version": "1.0.0",
   "generator_version": "2.0.0-reference",
-  "generated_at": "2026-08-28T16:04:07.065238+00:00",
+  "generated_at": "2026-08-29T22:10:06.872330+00:00",
   "corpus_sha256": "4b545d0ab2beef2735595cfbe4f82f231af97f4911ca83af090906736121efda",
   "story_packs_count": 48,
   "train_story_ids": [

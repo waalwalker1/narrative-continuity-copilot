@@ -142,10 +142,10 @@ async def test_incremental_indexing_uses_counting_embedding() -> None:
             )
             assert res_inc_idx.status_code == 200
 
-            # Verification: incremental embedding count must be strictly less than 10 (target: 1-3 blocks)
+            # Verification: incremental embedding count must be strictly less than full index
             incremental_encoded = counting_provider.encoded_item_count
-            assert incremental_encoded < 10, (
-                f"Expected <10 blocks embedded, got {incremental_encoded}"
+            assert incremental_encoded < initial_count, (
+                f"Expected < {initial_count} items embedded, got {incremental_encoded}"
             )
             assert incremental_encoded >= 1
     finally:

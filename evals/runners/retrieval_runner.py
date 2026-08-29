@@ -100,12 +100,14 @@ class RetrievalEvaluator:
         metrics_by_mode: dict[str, Any] = {}
 
         for mode in modes:
-            r1_hits = 0
-            r5_hits = 0
-            r10_hits = 0
-            reciprocal_ranks = []
-            ndcg_scores = []
-            anchor_hits = 0
+            text_r1_hits = 0
+            text_r5_hits = 0
+            text_r10_hits = 0
+            anchor_r1_hits = 0
+            anchor_r5_hits = 0
+            anchor_r10_hits = 0
+            reciprocal_ranks: list[float] = []
+            ndcg_scores: list[float] = []
             total_queries = 0
 
             for case in all_cases:
@@ -135,11 +137,14 @@ class RetrievalEvaluator:
                 response = await self.pipeline.search(q)
                 total_queries += 1
 
-                # Check if target evidence or gold anchor appears in top-k
-                hit_rank = None
+                # Check text match and exact anchor match
+                text_hit_rank = None
+                anchor_hit_rank = None
+
                 for rank, item in enumerate(response.results, start=1):
                     snip = item.text_snippet.lower()
-                    exact_anchor_match = gold_aid and item.anchor_id == gold_aid
+                    if gold_aid and item.anchor_id == gold_aid and anchor_hit_rank is None:
+                        anchor_hit_rank = rank
                     text_match = (
                         expected_kw in snip
                         or any(w in snip for w in expected_kw.split() if len(w) > 3)
@@ -148,21 +153,29 @@ class RetrievalEvaluator:
                             and any(p in snip for p in target_evidence.split(". ") if len(p) > 10)
                         )
                     )
-                    if exact_anchor_match or text_match:
-                        hit_rank = rank
-                        if exact_anchor_match:
-                            anchor_hits += 1
-                        break
+                    if text_match and text_hit_rank is None:
+                        text_hit_rank = rank
 
-                if hit_rank is not None:
-                    if hit_rank == 1:
-                        r1_hits += 1
-                    if hit_rank <= 5:
-                        r5_hits += 1
-                    if hit_rank <= 10:
-                        r10_hits += 1
-                    reciprocal_ranks.append(1.0 / hit_rank)
-                    ndcg_scores.append(1.0 / math.log2(hit_rank + 1))
+                if text_hit_rank is not None:
+                    if text_hit_rank == 1:
+                        text_r1_hits += 1
+                    if text_hit_rank <= 5:
+                        text_r5_hits += 1
+                    if text_hit_rank <= 10:
+                        text_r10_hits += 1
+
+                if anchor_hit_rank is not None:
+                    if anchor_hit_rank == 1:
+                        anchor_r1_hits += 1
+                    if anchor_hit_rank <= 5:
+                        anchor_r5_hits += 1
+                    if anchor_hit_rank <= 10:
+                        anchor_r10_hits += 1
+                    reciprocal_ranks.append(1.0 / anchor_hit_rank)
+                    ndcg_scores.append(1.0 / math.log2(anchor_hit_rank + 1))
+                elif text_hit_rank is not None:
+                    reciprocal_ranks.append(1.0 / text_hit_rank)
+                    ndcg_scores.append(1.0 / math.log2(text_hit_rank + 1))
                 else:
                     reciprocal_ranks.append(0.0)
                     ndcg_scores.append(0.0)
@@ -170,12 +183,18 @@ class RetrievalEvaluator:
             n = max(total_queries, 1)
             metrics_by_mode[mode.value] = {
                 "queries_evaluated": total_queries,
-                "recall_at_1": round(r1_hits / n, 4),
-                "recall_at_5": round(r5_hits / n, 4),
-                "recall_at_10": round(r10_hits / n, 4),
+                "recall_at_1": round(text_r1_hits / n, 4),
+                "recall_at_5": round(text_r5_hits / n, 4),
+                "recall_at_10": round(text_r10_hits / n, 4),
+                "text_recall_at_1": round(text_r1_hits / n, 4),
+                "text_recall_at_5": round(text_r5_hits / n, 4),
+                "text_recall_at_10": round(text_r10_hits / n, 4),
+                "exact_anchor_recall_at_1": round(anchor_r1_hits / n, 4),
+                "exact_anchor_recall_at_5": round(anchor_r5_hits / n, 4),
+                "exact_anchor_recall_at_10": round(anchor_r10_hits / n, 4),
                 "mrr": round(sum(reciprocal_ranks) / n, 4),
                 "ndcg_at_10": round(sum(ndcg_scores) / n, 4),
-                "exact_anchor_hit_rate": round(anchor_hits / n, 4),
+                "exact_anchor_hit_rate": round(anchor_r5_hits / n, 4),
             }
 
         return metrics_by_mode
