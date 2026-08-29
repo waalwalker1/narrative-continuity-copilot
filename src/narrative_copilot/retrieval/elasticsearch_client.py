@@ -95,16 +95,11 @@ class ElasticsearchEngine:
             try:
                 return bool(self._client.ping())
             except Exception:
-                self.use_mock = True
                 return False
         try:
-            self._client = Elasticsearch(self.es_url, request_timeout=0.5)
-            if self._client.ping():
-                return True
-            self.use_mock = True
-            return False
+            self._client = Elasticsearch(self.es_url, request_timeout=3.0)
+            return bool(self._client.ping())
         except Exception:
-            self.use_mock = True
             return False
 
     async def ensure_indices(self) -> None:
@@ -126,8 +121,8 @@ class ElasticsearchEngine:
                         )
                     except Exception:
                         client.indices.create(index=MEMORY_INDEX, body=MEMORY_MAPPING)
-            except Exception:
-                self.use_mock = True
+            except Exception as exc:
+                logger.debug("Failed to ensure indices: %s", exc)
         else:
             self.use_mock = True
 
@@ -265,13 +260,15 @@ class ElasticsearchEngine:
                     ]
                 }
             }
-            client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
+            with contextlib.suppress(Exception):
+                client.delete_by_query(index=MEMORY_INDEX, body={"query": query})
         else:
+            anchor_set = set(anchor_ids)
             to_del = [
                 k
                 for k, v in self._mock_memory.items()
                 if v.get("project_id") == project_id
-                and any(a in v.get("evidence_anchor_ids", []) for a in anchor_ids)
+                and any(a in anchor_set for a in v.get("evidence_anchor_ids", []))
             ]
             for k in to_del:
                 self._mock_memory.pop(k, None)
@@ -302,13 +299,15 @@ class ElasticsearchEngine:
                     query={"bool": {"must": must_clauses}},
                     size=top_k,
                 )
-                return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+                hits = [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
+                if hits:
+                    return hits
             except Exception as exc:
-                logger.warning(
+                logger.debug(
                     "Live Elasticsearch search_memory failed: %s, using in-memory fallback", exc
                 )
 
-        # In-memory mock search
+        # In-memory mock search fallback
         results: list[tuple[dict[str, Any], float]] = []
         tokens = query.lower().split()
         for doc in self._mock_memory.values():
