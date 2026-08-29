@@ -134,11 +134,16 @@ class ElasticsearchEngine:
     async def index_chunk(self, doc: dict[str, Any]) -> None:
         """Index a single manuscript chunk document."""
         chunk_id = doc["chunk_id"]
+        self._mock_chunks[chunk_id] = doc
         if self.is_connected() and not self.use_mock:
-            client = Elasticsearch(self.es_url)
-            client.index(index=CHUNKS_INDEX, id=chunk_id, document=doc)
-        else:
-            self._mock_chunks[chunk_id] = doc
+            try:
+                client = Elasticsearch(self.es_url)
+                doc_copy = dict(doc)
+                if not doc_copy.get("text_vector") or len(doc_copy.get("text_vector", [])) != 384:
+                    doc_copy["text_vector"] = [0.0] * 384
+                client.index(index=CHUNKS_INDEX, id=chunk_id, document=doc_copy, refresh=True)
+            except Exception as exc:
+                logger.debug("Failed chunk indexing: %s", exc)
 
     async def index_chunks_bulk(self, docs: list[dict[str, Any]]) -> int:
         """Bulk index manuscript chunk documents."""
@@ -151,8 +156,14 @@ class ElasticsearchEngine:
                 client = Elasticsearch(self.es_url)
                 operations = []
                 for d in docs:
+                    doc_copy = dict(d)
+                    if (
+                        not doc_copy.get("text_vector")
+                        or len(doc_copy.get("text_vector", [])) != 384
+                    ):
+                        doc_copy["text_vector"] = [0.0] * 384
                     operations.append({"index": {"_index": CHUNKS_INDEX, "_id": d["chunk_id"]}})
-                    operations.append(d)
+                    operations.append(doc_copy)
                 client.bulk(operations=operations, refresh=True)
             except Exception as exc:
                 logger.debug("Failed bulk chunk indexing: %s", exc)
@@ -165,7 +176,10 @@ class ElasticsearchEngine:
         if not self.use_mock and self.is_connected():
             try:
                 client = Elasticsearch(self.es_url)
-                client.index(index=MEMORY_INDEX, id=doc_id, document=doc)
+                doc_copy = dict(doc)
+                if not doc_copy.get("vector") or len(doc_copy.get("vector", [])) != 384:
+                    doc_copy["vector"] = [0.0] * 384
+                client.index(index=MEMORY_INDEX, id=doc_id, document=doc_copy, refresh=True)
             except Exception as exc:
                 logger.debug("Failed memory doc indexing: %s", exc)
 
@@ -180,8 +194,11 @@ class ElasticsearchEngine:
                 client = Elasticsearch(self.es_url)
                 operations = []
                 for d in docs:
+                    doc_copy = dict(d)
+                    if not doc_copy.get("vector") or len(doc_copy.get("vector", [])) != 384:
+                        doc_copy["vector"] = [0.0] * 384
                     operations.append({"index": {"_index": MEMORY_INDEX, "_id": d["doc_id"]}})
-                    operations.append(d)
+                    operations.append(doc_copy)
                 client.bulk(operations=operations, refresh=True)
             except Exception as exc:
                 logger.debug("Failed bulk memory indexing: %s", exc)

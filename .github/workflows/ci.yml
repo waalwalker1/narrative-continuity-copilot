@@ -173,13 +173,14 @@ jobs:
         uses: astral-sh/setup-uv@v3
       - name: Install dependencies
         run: |
-          uv sync --extra dev
+          uv sync --extra dev --extra cloud
           npm ci
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
       - name: Run Playwright E2E Tests
         env:
           USE_DETERMINISTIC_EMBEDDINGS: 1
+          PYTHONPATH: src:apps:.
         run: npm run test:e2e
 
   docker-smoke:
