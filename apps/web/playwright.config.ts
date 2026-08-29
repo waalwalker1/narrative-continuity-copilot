@@ -19,12 +19,14 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "PYTHONPATH=. uv run uvicorn apps.api.main:app --port 8000",
+      command: "PYTHONPATH=src:apps:. uv run uvicorn apps.api.main:app --port 8000",
+      cwd: "../..",
       port: 8000,
       reuseExistingServer: !process.env.CI,
     },
     {
       command: "npm run dev",
+      cwd: "../..",
       port: 3000,
       reuseExistingServer: !process.env.CI,
     },
