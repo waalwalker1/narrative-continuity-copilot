@@ -1,6 +1,7 @@
 {
   "name": "narrative-continuity-copilot",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "private": true,
   "description": "Evidence-grounded story memory and continuity review for long-form fiction",
   "type": "module",

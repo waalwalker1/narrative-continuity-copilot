@@ -71,6 +71,43 @@ def check_stale_patterns(files: list[Path]) -> list[str]:
     return violations
 
 
+def check_license_consistency() -> list[str]:
+    violations = []
+    # 1. LICENSE file
+    license_file = BASE_DIR / "LICENSE"
+    if not license_file.exists() or "Apache License" not in license_file.read_text(
+        encoding="utf-8"
+    ):
+        violations.append("LICENSE file does not contain Apache License 2.0")
+
+    # 2. pyproject.toml
+    pyproject_file = BASE_DIR / "pyproject.toml"
+    if pyproject_file.exists():
+        content = pyproject_file.read_text(encoding="utf-8")
+        if 'license = "Apache-2.0"' not in content and "Apache License" not in content:
+            violations.append("pyproject.toml license is not Apache-2.0")
+
+    # 3. package.json
+    pkg_json = BASE_DIR / "package.json"
+    if pkg_json.exists():
+        try:
+            data = json.loads(pkg_json.read_text(encoding="utf-8"))
+            if data.get("license") != "Apache-2.0":
+                violations.append(
+                    f"package.json license is '{data.get('license')}', expected 'Apache-2.0'"
+                )
+        except Exception as exc:
+            violations.append(f"Could not parse package.json: {exc}")
+
+    # 4. README.md
+    if README_FILE.exists():
+        readme_content = README_FILE.read_text(encoding="utf-8")
+        if "Apache License 2.0" not in readme_content and "Apache_2.0" not in readme_content:
+            violations.append("README.md does not reference Apache License 2.0")
+
+    return violations
+
+
 def sync_metrics(write_mode: bool = False) -> bool:
     if not SUMMARY_FILE.exists():
         print(f"Error: summary.json not found at {SUMMARY_FILE}. Run benchmark first.")
@@ -82,7 +119,19 @@ def sync_metrics(write_mode: bool = False) -> bool:
     target_files = [README_FILE]
     all_ok = True
 
-    # 1. Stale patterns check
+    # 1. License consistency check
+    license_violations = check_license_consistency()
+    if license_violations:
+        print("Error: License metadata inconsistency detected:")
+        for lv in license_violations:
+            print(f"  - {lv}")
+        all_ok = False
+    else:
+        print(
+            "PASS: License consistency verified (Apache-2.0 across LICENSE, pyproject.toml, package.json, README.md)."
+        )
+
+    # 2. Stale patterns check
     stale_violations = check_stale_patterns([README_FILE, RELEASE_VAL_FILE, SECURITY_AUDIT_FILE])
     if stale_violations:
         print("Error: Obsolete metric/dataset claims detected:")

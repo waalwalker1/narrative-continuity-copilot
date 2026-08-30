@@ -23,13 +23,50 @@ ARTIFACTS_DIR = BASE_DIR / "artifacts" / "evals" / "latest"
 
 
 async def main() -> None:
+    import contextlib
+    import hashlib
+    import os
+    import platform
+    import subprocess
+    from datetime import UTC, datetime
+
     print("=== Running Narrative Continuity Copilot Evaluation Suite ===")
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 0. Startup assertions for Canonical Full-Reference Benchmark
+    print("[0/8] Validating benchmark runtime invariants (fail-closed)...")
+    search_mode = os.getenv("SEARCH_MODE", "full_reference").lower().strip()
+    embedding_mode = os.getenv("EMBEDDING_MODE", "sentence_transformer").lower().strip()
+    use_det = os.getenv("USE_DETERMINISTIC_EMBEDDINGS") == "1"
+
+    if search_mode in ("full_reference", "full", "strict"):
+        if use_det or embedding_mode == "deterministic_fixture":
+            raise RuntimeError(
+                "Deterministic embeddings are strictly forbidden during canonical FULL_REFERENCE benchmark evaluation."
+            )
+        from narrative_copilot.retrieval.elasticsearch_client import ElasticsearchEngine
+
+        es_test = ElasticsearchEngine(search_mode="full_reference")
+        if not es_test.is_connected():
+            raise RuntimeError(
+                f"Elasticsearch at {es_test.es_url} is not reachable for canonical FULL_REFERENCE benchmark."
+            )
+
+        from narrative_copilot.llm.embeddings import SentenceTransformerEmbeddingProvider
+
+        st_test = SentenceTransformerEmbeddingProvider()
+        test_vec = st_test.encode(["test text"])
+        if not test_vec or len(test_vec[0]) != 384:
+            raise RuntimeError(
+                f"SentenceTransformer did not produce 384-dimensional vector (got {len(test_vec[0]) if test_vec else 0})."
+            )
 
     # 1. Dataset Generation
     print("[1/8] Generating synthetic dataset (48 story packs, 576 cases across 12 classes)...")
     manifest = save_synthetic_dataset(FIXTURES_DIR)
-    (ARTIFACTS_DIR / "DATASET_MANIFEST.json").write_text(json.dumps(manifest, indent=2))
+    manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+    (ARTIFACTS_DIR / "DATASET_MANIFEST.json").write_bytes(manifest_bytes)
+    dataset_sha = hashlib.sha256(manifest_bytes).hexdigest()
 
     # 2. Retrieval Benchmark
     print("[2/8] Running Retrieval Evaluation (BM25, Dense, Hybrid)...")
@@ -71,19 +108,40 @@ async def main() -> None:
         retrieval_metrics, continuity_metrics
     )
 
+    git_hash = os.getenv("BENCHMARK_SOURCE_SHA", "unknown")
+    if git_hash == "unknown":
+        with contextlib.suppress(Exception):
+            git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+
     # Build summary.json
     summary = {
         "benchmark_version": "1.0.0",
+        "benchmark_source_commit": git_hash,
         "dataset": manifest,
         "retrieval": retrieval_metrics,
         "continuity": {
             "total_cases": continuity_metrics["total_cases"],
             "gold_cases": continuity_metrics.get("gold_cases", continuity_metrics["total_cases"]),
+            "positive_gold_cases": continuity_metrics.get(
+                "positive_gold_cases",
+                continuity_metrics["true_positives"] + continuity_metrics["false_negatives"],
+            ),
+            "negative_gold_cases": continuity_metrics.get(
+                "negative_gold_cases",
+                continuity_metrics["true_negatives"] + continuity_metrics["false_positives"],
+            ),
+            "true_positives": continuity_metrics["true_positives"],
+            "true_negatives": continuity_metrics["true_negatives"],
+            "false_positives": continuity_metrics["false_positives"],
+            "false_negatives": continuity_metrics["false_negatives"],
             "extra_unmatched_alerts": continuity_metrics.get("extra_unmatched_alerts", 0),
             "precision": continuity_metrics["precision"],
             "recall": continuity_metrics["recall"],
             "f1": continuity_metrics["f1"],
             "macro_f1": continuity_metrics["macro_f1"],
+            "gold_case_fpr": continuity_metrics.get(
+                "gold_case_fpr", continuity_metrics["false_positive_rate"]
+            ),
             "false_positive_rate": continuity_metrics["false_positive_rate"],
             "citation_validity_rate": continuity_metrics["citation_validity_rate"],
             "unsupported_claim_rate": continuity_metrics["unsupported_claim_rate"],
@@ -115,36 +173,62 @@ async def main() -> None:
         ],
     }
 
-    # 9. Environment Metadata (Section 19)
-    import contextlib
-    import os
-    import platform
-    import subprocess
-    from datetime import UTC, datetime
-
-    git_hash = "unknown"
+    # 9. Environment Metadata (Section 4)
+    es_server_version = "8.14.0"
+    es_client_version = "unknown"
     with contextlib.suppress(Exception):
-        git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+        import elasticsearch
+
+        es_client_version = elasticsearch.__version__
+        if es_client_version and isinstance(es_client_version, tuple):
+            es_client_version = ".".join(map(str, es_client_version))
+        cl = elasticsearch.Elasticsearch(
+            os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"), request_timeout=2.0
+        )
+        if cl.ping():
+            info = cl.info()
+            es_server_version = info.get("version", {}).get("number", "8.14.0")
+
+    node_version = "unknown"
+    with contextlib.suppress(Exception):
+        node_version = subprocess.check_output(["node", "-v"]).decode().strip()
+
+    st_version = "unknown"
+    with contextlib.suppress(Exception):
+        import sentence_transformers
+
+        st_version = sentence_transformers.__version__
+
+    torch_version = "unknown"
+    with contextlib.suppress(Exception):
+        import torch
+
+        torch_version = torch.__version__
 
     env_data = {
+        "benchmark_source_commit": git_hash,
+        "execution_timestamp": datetime.now(UTC).isoformat(),
         "os_version": f"{platform.system()} {platform.release()}",
         "architecture": platform.machine(),
         "python_version": platform.python_version(),
-        "git_commit_hash": git_hash,
-        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "node_version": node_version,
+        "elasticsearch_server_version": str(es_server_version),
+        "elasticsearch_client_version": str(es_client_version),
         "elasticsearch_target": os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"),
+        "embedding_provider": "SentenceTransformerEmbeddingProvider",
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "embedding_dimension": 384,
+        "embedding_mode": embedding_mode,
+        "search_mode": search_mode.upper(),
+        "sentence_transformers_version": st_version,
+        "torch_version": torch_version,
+        "dataset_sha": dataset_sha,
         "random_seed": 42,
-        "execution_timestamp": datetime.now(UTC).isoformat(),
         "runner": "evals.runners.run_all",
     }
-    try:
-        import torch
-
-        env_data["pytorch_version"] = torch.__version__
-    except ImportError:
-        env_data["pytorch_version"] = "not_installed"
 
     (ARTIFACTS_DIR / "BENCHMARK_ENVIRONMENT.json").write_text(json.dumps(env_data, indent=2))
+    (ARTIFACTS_DIR / "summary.json").write_text(json.dumps(summary, indent=2))
 
     # Generate Markdown Reports
     _write_markdown_reports(

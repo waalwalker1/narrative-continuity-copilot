@@ -71,14 +71,30 @@ MEMORY_MAPPING = {
 }
 
 
+SEARCH_MODE_FULL_REFERENCE = "full_reference"
+SEARCH_MODE_LOCAL_LIGHT = "local_light"
+
+
 class ElasticsearchEngine:
     """
     Elasticsearch retrieval client supporting hybrid BM25 and vector search.
-    Includes in-memory search fallback for zero-dependency local environments.
+    Supports FULL_REFERENCE (strict, fail-closed, real ES) and LOCAL_LIGHT (mock fallback) modes.
     """
 
-    def __init__(self, es_url: str | None = None) -> None:
+    def __init__(
+        self,
+        es_url: str | None = None,
+        search_mode: str | None = None,
+    ) -> None:
         self.es_url = es_url or os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
+        raw_mode = search_mode or os.getenv("SEARCH_MODE") or SEARCH_MODE_LOCAL_LIGHT
+        mode = raw_mode.lower().strip()
+        self.search_mode = (
+            SEARCH_MODE_FULL_REFERENCE
+            if mode in ("full_reference", "full", "strict")
+            else SEARCH_MODE_LOCAL_LIGHT
+        )
+        self.allow_fallback = self.search_mode == SEARCH_MODE_LOCAL_LIGHT
         self._client: Elasticsearch | None = None
         self._async_client: AsyncElasticsearch | None = None
         self.use_mock = False
@@ -89,17 +105,37 @@ class ElasticsearchEngine:
 
     def is_connected(self) -> bool:
         """Check if live Elasticsearch server is accessible."""
-        if self.use_mock or Elasticsearch is None:
+        if Elasticsearch is None:
+            if not self.allow_fallback:
+                raise RuntimeError("Elasticsearch library is not installed in FULL_REFERENCE mode.")
             return False
         if self._client is not None:
             try:
-                return bool(self._client.ping())
-            except Exception:
+                ok = bool(self._client.ping())
+                if not ok and not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Elasticsearch ping failed at {self.es_url} in FULL_REFERENCE mode."
+                    )
+                return ok
+            except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Elasticsearch ping failed at {self.es_url} in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 return False
         try:
             self._client = Elasticsearch(self.es_url, request_timeout=3.0)
-            return bool(self._client.ping())
-        except Exception:
+            ok = bool(self._client.ping())
+            if not ok and not self.allow_fallback:
+                raise RuntimeError(
+                    f"Cannot reach Elasticsearch at {self.es_url} in FULL_REFERENCE mode."
+                )
+            return ok
+        except Exception as exc:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    f"Cannot reach Elasticsearch at {self.es_url} in FULL_REFERENCE mode: {exc}"
+                ) from exc
             return False
 
     async def ensure_indices(self) -> None:
@@ -122,8 +158,16 @@ class ElasticsearchEngine:
                     except Exception:
                         client.indices.create(index=MEMORY_INDEX, body=MEMORY_MAPPING)
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Failed to ensure Elasticsearch indices in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Failed to ensure indices: %s", exc)
         else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    f"Cannot ensure indices: Elasticsearch is not reachable at {self.es_url} in FULL_REFERENCE mode."
+                )
             self.use_mock = True
 
     async def index_chunk(self, doc: dict[str, Any]) -> None:
@@ -134,11 +178,25 @@ class ElasticsearchEngine:
             try:
                 client = Elasticsearch(self.es_url)
                 doc_copy = dict(doc)
-                if not doc_copy.get("text_vector") or len(doc_copy.get("text_vector", [])) != 384:
+                vec = doc_copy.get("text_vector")
+                if not vec or len(vec) != 384:
+                    if not self.allow_fallback:
+                        raise ValueError(
+                            f"Chunk document {chunk_id} missing 384-dimensional text_vector in FULL_REFERENCE mode."
+                        )
                     doc_copy["text_vector"] = [0.0] * 384
                 client.index(index=CHUNKS_INDEX, id=chunk_id, document=doc_copy, refresh=True)
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Failed chunk indexing in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Failed chunk indexing: %s", exc)
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot index chunk: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
 
     async def index_chunks_bulk(self, docs: list[dict[str, Any]]) -> int:
         """Bulk index manuscript chunk documents."""
@@ -151,15 +209,26 @@ class ElasticsearchEngine:
                 client = Elasticsearch(self.es_url)
                 for d in docs:
                     doc_copy = dict(d)
-                    if (
-                        not doc_copy.get("text_vector")
-                        or len(doc_copy.get("text_vector", [])) != 384
-                    ):
+                    vec = doc_copy.get("text_vector")
+                    if not vec or len(vec) != 384:
+                        if not self.allow_fallback:
+                            raise ValueError(
+                                f"Chunk {d.get('chunk_id')} missing 384-dimensional text_vector in FULL_REFERENCE mode."
+                            )
                         doc_copy["text_vector"] = [0.0] * 384
                     client.index(index=CHUNKS_INDEX, id=d["chunk_id"], document=doc_copy)
                 client.indices.refresh(index=CHUNKS_INDEX)
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Failed bulk chunk indexing in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Failed bulk chunk indexing: %s", exc)
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot bulk index chunks: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
         return len(docs)
 
     async def index_memory_doc(self, doc: dict[str, Any]) -> None:
@@ -170,12 +239,26 @@ class ElasticsearchEngine:
             try:
                 client = Elasticsearch(self.es_url)
                 doc_copy = dict(doc)
-                if not doc_copy.get("vector") or len(doc_copy.get("vector", [])) != 384:
+                vec = doc_copy.get("vector")
+                if not vec or len(vec) != 384:
+                    if not self.allow_fallback:
+                        raise ValueError(
+                            f"Memory doc {doc_id} missing 384-dimensional vector in FULL_REFERENCE mode."
+                        )
                     doc_copy["vector"] = [0.0] * 384
                 client.index(index=MEMORY_INDEX, id=doc_id, document=doc_copy)
                 client.indices.refresh(index=MEMORY_INDEX)
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Failed memory doc indexing in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Failed memory doc indexing: %s", exc)
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot index memory doc: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
 
     async def index_memory_bulk(self, docs: list[dict[str, Any]]) -> int:
         """Bulk index story memory documents."""
@@ -188,12 +271,26 @@ class ElasticsearchEngine:
                 client = Elasticsearch(self.es_url)
                 for d in docs:
                     doc_copy = dict(d)
-                    if not doc_copy.get("vector") or len(doc_copy.get("vector", [])) != 384:
+                    vec = doc_copy.get("vector")
+                    if not vec or len(vec) != 384:
+                        if not self.allow_fallback:
+                            raise ValueError(
+                                f"Memory doc {d.get('doc_id')} missing 384-dimensional vector in FULL_REFERENCE mode."
+                            )
                         doc_copy["vector"] = [0.0] * 384
                     client.index(index=MEMORY_INDEX, id=d["doc_id"], document=doc_copy)
                 client.indices.refresh(index=MEMORY_INDEX)
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Failed bulk memory indexing in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Failed bulk memory indexing: %s", exc)
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot bulk index memory docs: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
         return len(docs)
 
     async def delete_chunks_by_ids(self, project_id: str, chunk_ids: list[str]) -> None:
@@ -300,14 +397,22 @@ class ElasticsearchEngine:
                     size=top_k,
                 )
                 hits = [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
-                if hits:
-                    return hits
+                return hits
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Elasticsearch search_memory failed in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug(
                     "Live Elasticsearch search_memory failed: %s, using in-memory fallback", exc
                 )
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot search memory: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
 
-        # In-memory mock search fallback
+        # In-memory mock search fallback (only in local_light mode)
         results: list[tuple[dict[str, Any], float]] = []
         tokens = query.lower().split()
         for doc in self._mock_memory.values():
@@ -396,6 +501,10 @@ class ElasticsearchEngine:
                     if b_ids and vec:
                         vectors[b_ids[0]] = vec
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Failed to retrieve revision chunk vectors in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Failed to retrieve revision chunk vectors from ES: %s", exc)
         return vectors
 
@@ -437,7 +546,16 @@ class ElasticsearchEngine:
                 )
                 return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Elasticsearch BM25 search failed in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Elasticsearch BM25 search failed: %s", exc)
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot run BM25 search: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
 
         # In-memory BM25 simulation
         results: list[tuple[dict[str, Any], float]] = []
@@ -472,6 +590,10 @@ class ElasticsearchEngine:
         top_k: int = 10,
     ) -> list[tuple[dict[str, Any], float]]:
         """Dense vector search using cosine similarity."""
+        if (not query_vector or len(query_vector) != 384) and not self.allow_fallback:
+            raise ValueError(
+                f"query_vector must be 384-dimensional in FULL_REFERENCE mode (got {len(query_vector)})."
+            )
         if self.is_connected() and not self.use_mock:
             try:
                 client = Elasticsearch(self.es_url)
@@ -491,7 +613,16 @@ class ElasticsearchEngine:
                 )
                 return [(hit["_source"], float(hit["_score"])) for hit in res["hits"]["hits"]]
             except Exception as exc:
+                if not self.allow_fallback:
+                    raise RuntimeError(
+                        f"Elasticsearch vector search failed in FULL_REFERENCE mode: {exc}"
+                    ) from exc
                 logger.debug("Elasticsearch vector search failed: %s", exc)
+        else:
+            if not self.allow_fallback:
+                raise RuntimeError(
+                    "Cannot run vector search: Elasticsearch is not connected in FULL_REFERENCE mode."
+                )
 
         # In-memory cosine similarity
         q_vec = np.array(query_vector, dtype=float)

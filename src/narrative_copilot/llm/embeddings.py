@@ -39,18 +39,32 @@ class SentenceTransformerEmbeddingProvider:
 
     def _get_model(self) -> Any:
         if self._model is None:
+            search_mode = os.environ.get("SEARCH_MODE", "").lower().strip()
             mode = os.environ.get("EMBEDDING_MODE", "").lower().strip()
-            if (
-                mode == "deterministic_fixture"
-                or os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1"
+            use_det = os.environ.get("USE_DETERMINISTIC_EMBEDDINGS") == "1"
+
+            if search_mode in ("full_reference", "full", "strict") and (
+                use_det or mode == "deterministic_fixture"
             ):
+                raise RuntimeError(
+                    "Deterministic embeddings are strictly prohibited in FULL_REFERENCE mode."
+                )
+
+            if mode == "deterministic_fixture" or use_det:
                 self._model = DeterministicEmbeddingStub(dimension=self._dimension)
                 return self._model
 
             # Full reference mode: load genuine SentenceTransformer
-            from sentence_transformers import SentenceTransformer
+            try:
+                from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self._model_name, device="cpu")
+                self._model = SentenceTransformer(self._model_name, device="cpu")
+            except Exception as exc:
+                if search_mode in ("full_reference", "full", "strict"):
+                    raise RuntimeError(
+                        f"Failed to load genuine SentenceTransformer '{self._model_name}' in FULL_REFERENCE mode: {exc}"
+                    ) from exc
+                self._model = DeterministicEmbeddingStub(dimension=self._dimension)
         return self._model
 
     def encode(self, texts: list[str]) -> list[list[float]]:

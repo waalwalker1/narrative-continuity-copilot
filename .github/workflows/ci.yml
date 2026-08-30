@@ -34,6 +34,7 @@ jobs:
           uv run mypy src apps/api tests
       - name: Frontend Lint & Typecheck
         run: |
+          npm run lint
           npm run typecheck
 
   backend-tests:
@@ -51,6 +52,7 @@ jobs:
       - name: Run Unit, Property & Integration Tests with Coverage
         env:
           USE_DETERMINISTIC_EMBEDDINGS: 1
+          SEARCH_MODE: local_light
         run: |
           PYTHONPATH=src:apps:. uv run pytest --cov=narrative_copilot --cov-report=term-missing --cov-report=xml --cov-fail-under=75 tests/unit tests/property tests/integration
 
@@ -83,7 +85,8 @@ jobs:
       - name: Run Full-Stack Retrieval Integration Tests
         env:
           ELASTICSEARCH_URL: http://localhost:9200
-          USE_DETERMINISTIC_EMBEDDINGS: 1
+          SEARCH_MODE: full_reference
+          EMBEDDING_MODE: sentence_transformer
         run: |
           PYTHONPATH=src:apps:. uv run pytest tests/integration
 
@@ -113,10 +116,11 @@ jobs:
         uses: astral-sh/setup-uv@v3
       - name: Install dependencies
         run: uv sync --extra dev
-      - name: Run Master Benchmark Suite
+      - name: Run Canonical Full-Reference Benchmark Suite (Elasticsearch + MiniLM)
         env:
           ELASTICSEARCH_URL: http://localhost:9200
-          USE_DETERMINISTIC_EMBEDDINGS: 1
+          SEARCH_MODE: full_reference
+          EMBEDDING_MODE: sentence_transformer
         run: |
           PYTHONPATH=src:apps:. uv run python evals/runners/run_all.py
       - name: Check Metric Synchronization
@@ -131,13 +135,28 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Install uv
         uses: astral-sh/setup-uv@v3
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: |
+          uv sync --extra dev
+          npm ci
       - name: Bandit Security Scan
         run: |
           uv run bandit -r src apps/api -ll
+      - name: Pip Dependency Vulnerability Audit
+        run: |
+          uv run pip-audit
+      - name: NPM Dependency Security Gate (Accepted Risks)
+        run: |
+          python3 scripts/npm_audit_gate.py
+      - name: Secret Leakage Baseline Scan
+        run: |
+          uv run detect-secrets scan src apps tests docs scripts README.md --baseline .secrets.baseline
       - name: Red-Team Prompt Injection Suite
         run: |
           PYTHONPATH=src:apps:. uv run python -c "import asyncio; from evals.runners.injection_runner import InjectionBenchmarkRunner; r = InjectionBenchmarkRunner(); res = asyncio.run(r.run_benchmark()); assert res['failed'] == 0, f'Prompt injection failures: {res}'"
@@ -152,6 +171,10 @@ jobs:
           node-version: "20"
       - name: Install dependencies
         run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript Typecheck
+        run: npm run typecheck
       - name: Frontend Unit Tests
         run: npm test
       - name: Build Web Application
@@ -187,12 +210,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build and Validate Compose Stack
-        run: |
-          docker compose config
-          docker compose build
+      - name: Validate Compose Config
+        run: docker compose config
+      - name: Run Transactional Docker Smoke Test
+        run: python3 scripts/docker_smoke.py
 
   public-hygiene:
     runs-on: ubuntu-latest
@@ -209,7 +236,7 @@ jobs:
       - name: Check Untracked Spec Files
         run: |
           ! git ls-files | grep -E "(BUILD_SPEC|FINAL_.*RELEASE|eval_output\.json)"
-      - name: Check Public Metric Sync
+      - name: Check Public Metric Sync & License Consistency
         run: |
           PYTHONPATH=src:apps:. uv run python scripts/sync_public_metrics.py --check
 
@@ -227,4 +254,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Release Gate Verdict
-        run: echo "All 10 mandatory release gates passed successfully!"
+        run: |
+          echo "=== RELEASE GATE VERDICT: REFERENCE_RELEASE_READY ==="
+          echo "All 9 upstream verification jobs completed with 100% success."

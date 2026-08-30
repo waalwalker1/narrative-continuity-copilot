@@ -133,10 +133,19 @@ def main() -> None:
             f"http://localhost:8000/api/v1/projects/{project_id}/index", {"incremental": True}
         )
 
-        # 10. Check Prometheus metrics endpoint
-        print("[10/10] Checking metrics endpoint...")
+        # 10. Check Web UI & Prometheus metrics endpoint
+        print("[10/11] Checking Web UI frontend...")
+        try:
+            req_web = urllib.request.Request("http://localhost:3000")
+            with urllib.request.urlopen(req_web, timeout=5) as w_resp:
+                assert w_resp.status == 200
+                print("Web UI responded HTTP 200!")
+        except Exception as exc:
+            print(f"Web UI check note (frontend service optional or proxied): {exc}")
+
+        print("[11/11] Checking metrics endpoint...")
         req_metrics = urllib.request.Request("http://localhost:8000/metrics")
-        with urllib.request.urlopen(req_metrics) as m_resp:
+        with urllib.request.urlopen(req_metrics, timeout=5) as m_resp:
             metrics_content = m_resp.read().decode("utf-8")
             assert "alerts_created_total" in metrics_content
             print("Prometheus metrics successfully validated!")

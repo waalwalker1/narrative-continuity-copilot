@@ -4,7 +4,7 @@
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Elasticsearch 8.14](https://img.shields.io/badge/elasticsearch-8.14-green.svg)](https://www.elastic.co/)
 [![Vue 3](https://img.shields.io/badge/vue-3.5-emerald.svg)](https://vuejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 > **Evidence-grounded story memory and narrative continuity copilot for book-length fiction.**
 
@@ -189,4 +189,4 @@ make release-check
 
 ## 9. License
 
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
+This project is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.

@@ -57,8 +57,9 @@ demo:
 
 security:
 	$(BANDIT) -r src apps/api -ll
-	$(PIP_AUDIT) --ignore-vuln CVE-2024-5174 || true
-	npm audit --audit-level=high || true
+	$(PIP_AUDIT)
+	python3 scripts/npm_audit_gate.py
+	.venv/bin/detect-secrets scan src apps tests docs scripts README.md --baseline .secrets.baseline
 	make red-team
 
 build:

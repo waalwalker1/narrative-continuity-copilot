@@ -173,9 +173,6 @@ class RetrievalEvaluator:
                         anchor_r10_hits += 1
                     reciprocal_ranks.append(1.0 / anchor_hit_rank)
                     ndcg_scores.append(1.0 / math.log2(anchor_hit_rank + 1))
-                elif text_hit_rank is not None:
-                    reciprocal_ranks.append(1.0 / text_hit_rank)
-                    ndcg_scores.append(1.0 / math.log2(text_hit_rank + 1))
                 else:
                     reciprocal_ranks.append(0.0)
                     ndcg_scores.append(0.0)
@@ -193,7 +190,9 @@ class RetrievalEvaluator:
                 "exact_anchor_recall_at_5": round(anchor_r5_hits / n, 4),
                 "exact_anchor_recall_at_10": round(anchor_r10_hits / n, 4),
                 "mrr": round(sum(reciprocal_ranks) / n, 4),
+                "anchor_mrr": round(sum(reciprocal_ranks) / n, 4),
                 "ndcg_at_10": round(sum(ndcg_scores) / n, 4),
+                "anchor_ndcg_at_10": round(sum(ndcg_scores) / n, 4),
                 "exact_anchor_hit_rate": round(anchor_r5_hits / n, 4),
             }
 
