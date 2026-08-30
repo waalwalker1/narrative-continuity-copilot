@@ -1,12 +1,21 @@
 {
-  "os_version": "Darwin 25.5.0",
+  "benchmark_source_commit": "df05df8b6d360eb5c4d40213bffee17cde62cbca",
+  "execution_timestamp": "2026-08-30T18:37:25.360451+00:00",
+  "os_version": "Darwin 25.6.0",
   "architecture": "arm64",
   "python_version": "3.12.13",
-  "git_commit_hash": "fd3757b21c1630b4bbbcbadec24017264e718d50",
-  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "node_version": "v20.20.1",
+  "elasticsearch_server_version": "8.14.0",
+  "elasticsearch_client_version": "8.19.3",
   "elasticsearch_target": "http://localhost:9200",
+  "embedding_provider": "SentenceTransformerEmbeddingProvider",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_dimension": 384,
+  "embedding_mode": "sentence_transformer",
+  "search_mode": "LOCAL_LIGHT",
+  "sentence_transformers_version": "6.0.0",
+  "torch_version": "2.13.0",
+  "dataset_sha": "e3db83235162c8e0bb813b651731cee3d446862643e26cd11c28a24a62caca69",
   "random_seed": 42,
-  "execution_timestamp": "2026-08-29T22:10:24.098477+00:00",
-  "runner": "evals.runners.run_all",
-  "pytorch_version": "2.13.0"
+  "runner": "evals.runners.run_all"
 }

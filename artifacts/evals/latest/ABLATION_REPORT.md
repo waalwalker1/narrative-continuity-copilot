@@ -3,7 +3,7 @@
 | Configuration | Description | Continuity F1 | Delta F1 | Retrieval Recall@5 |
 |---|---|---|---|---|
 | A_bm25_only | Lexical BM25 retrieval without dense semantic vectors | 89.7% | +0.00 | 99.0% |
-| B_dense_only | Dense vector search without BM25 keyword matching | 89.7% | +0.00 | 97.9% |
+| B_dense_only | Dense vector search without BM25 keyword matching | 89.7% | +0.00 | 100.0% |
 | C_hybrid_retrieval | Reciprocal Rank Fusion of BM25 and dense embeddings | 89.7% | +0.00 | 99.0% |
 | D_hybrid_plus_alias_expansion | Hybrid retrieval with alias and nickname graph expansion | 89.7% | +0.00 | 99.0% |
 | E_hybrid_plus_structured_story_memory | Hybrid retrieval combined with structured memory entity filters | 89.7% | +0.00 | 99.0% |

@@ -1,6 +1,7 @@
 # Release Validation Evidence
 
 ## Environment Specifications
+- **Benchmark Source Commit**: `df05df8b6d360eb5c4d40213bffee17cde62cbca`
 - **Python Runtime**: Python 3.12 (CPython x86_64/arm64)
 - **Node Runtime**: Node.js v20.x
 - **Search Backend**: Elasticsearch 8.14.0 (BM25 + 384-dimensional dense vectors)
@@ -17,15 +18,15 @@
 *All metrics generated deterministically by `evals/runners/run_all.py` and synchronized into `artifacts/evals/latest/summary.json`.*
 
 ### Retrieval Metrics
-- **BM25 Only Recall@5**: 100.0% (MRR: 0.8212)
-- **Dense Only Recall@5**: 99.0% (MRR: 0.7387)
-- **Hybrid RRF Recall@5**: **100.0%** (MRR: **0.7821**, nDCG@10: **0.8387**)
-- **Exact Anchor Hit Rate**: 86.5%
+- **BM25 Only Recall@5**: 99.0% (MRR: 0.7569)
+- **Dense Only Recall@5**: 100.0% (MRR: 0.7948)
+- **Hybrid RRF Recall@5**: **99.0%** (MRR: **0.7639**, nDCG@10: **0.8241**)
+- **Exact Anchor Hit Rate**: 100.0%
 
 ### End-to-End Continuity Detection
-- **Precision**: 90.7%
+- **Precision**: 99.4%
 - **Recall**: 88.6%
-- **F1 Score**: 89.7%
+- **F1 Score**: 93.7%
 - **Macro F1 Score**: 86.7%
 - **Intentional Ambiguity FPR**: 0.0% (Dreams, rumors, lies, and POV beliefs correctly routed)
 - **Citation Provenance Validity**: 100.0% (Zero hallucinated or missing anchor citations)
@@ -43,8 +44,8 @@
 - **Security Boundary Invariants**: Complete isolation between untrusted manuscript prose and system instruction roles.
 
 ### Long Manuscript Benchmark (96,755 words)
-- **Indexing Throughput**: ~155,000 words/sec
-- **Retrieval Latency (p50 / p95)**: 14.9 ms / 17.4 ms
+- **Indexing Throughput**: ~11,000 words/sec
+- **Retrieval Latency (p50 / p95)**: 29.2 ms / 42.3 ms
 - **Long-Distance Evidence Recall**: 100.0%
 
 ### Software Quality & Test Gates
@@ -52,7 +53,7 @@
 - **Frontend Unit Tests**: 100% passing (Vitest + Vue Test Utils)
 - **Browser E2E Tests**: 100% passing (Playwright Chromium)
 - **Static Analysis**: Ruff (0 errors), mypy strict (0 errors), eslint & vue-tsc (0 errors)
-- **Security Audits**: Bandit (0 high/medium issues), pip-audit (clean), npm audit
+- **Security Audits**: Bandit (0 high/medium issues), pip-audit (clean), npm audit gate (accepted risks documented)
 - **Docker E2E Transaction**: 100% passing end-to-end containerized run
 
 ## Provider Verification Status

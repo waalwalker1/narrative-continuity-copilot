@@ -37,7 +37,8 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ### 7. Dependency & Security Vulnerability Assessment
 - **Python Dependencies**: `pip-audit` scanned python environment with zero vulnerable dependencies.
-- **Frontend Dependencies**: Upstream `quill@2.0.3` advisory `GHSA-v3m3-f69x-jf25` (HTML export feature XSS). Exploitability: **None/Unexploitable** in this application because the server and client do not invoke Quill's HTML export feature, and all manuscript content is parsed and rendered via typed Delta structures. Review date: 2026-08-28.
+- **Frontend Dependencies**: `npm audit` evaluated against fail-closed security gate (`scripts/npm_audit_gate.py`). Known upstream dev advisories (`GHSA-v3m3-f69x-jf25` for Quill rich text editor, `GHSA-fx2h-pf6j-xcff` for Vite dev server) are comprehensively documented with zero-exploitability proofs and compensating controls in `docs/security/ACCEPTED_RISKS.md`. Review date: 2026-08-30.
+- **Secret Baseline**: `detect-secrets` scan verified clean baseline with 0 detected secrets across all tracked code, configuration, scripts, and documentation files.
 - **Result**: **PASS**
 
 ### 8. Public Repository Normalization
