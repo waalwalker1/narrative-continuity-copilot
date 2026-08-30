@@ -241,6 +241,10 @@ async def main() -> None:
         long_metrics,
         ablation_metrics,
     )
+    with contextlib.suppress(Exception):
+        from scripts.sync_public_metrics import sync_metrics
+
+        sync_metrics(write_mode=True)
     print("=== Evaluation Complete. Artifacts generated in artifacts/evals/latest/ ===")
 
 

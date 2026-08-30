@@ -213,6 +213,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
     proj_id = "proj_6_types_test"
     rev_id = "rev_6_types_test"
 
+    unit_vec = [1.0] + [0.0] * 383
     memory_docs = [
         {
             "doc_id": "ent_1",
@@ -221,7 +222,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
             "memory_type": "entity",
             "subject_entity_id": "ent_1",
             "canonical_text": "Lord Arthur Vance: Lord of Castle Oakvale Artie",
-            "vector": [0.0] * 384,
+            "vector": unit_vec,
             "entity_ids": ["ent_1"],
             "aliases": ["Artie"],
             "temporal_scope": "GLOBAL",
@@ -236,7 +237,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
             "memory_type": "fact",
             "subject_entity_id": "ent_1",
             "canonical_text": "eye_color: blue",
-            "vector": [0.0] * 384,
+            "vector": unit_vec,
             "entity_ids": ["ent_1"],
             "aliases": [],
             "temporal_scope": "GLOBAL",
@@ -251,7 +252,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
             "memory_type": "relation",
             "subject_entity_id": "ent_1",
             "canonical_text": "ent_1 sister_of ent_2",
-            "vector": [0.0] * 384,
+            "vector": unit_vec,
             "entity_ids": ["ent_1", "ent_2"],
             "aliases": [],
             "temporal_scope": "GLOBAL",
@@ -266,7 +267,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
             "memory_type": "timeline_event",
             "subject_entity_id": "ent_1",
             "canonical_text": "Battle at the Siege of Dunhaven (Order: 1)",
-            "vector": [0.0] * 384,
+            "vector": unit_vec,
             "entity_ids": ["ent_1"],
             "aliases": [],
             "temporal_scope": "1",
@@ -281,7 +282,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
             "memory_type": "world_rule",
             "subject_entity_id": "world_rule",
             "canonical_text": "Magic cannot penetrate solid iron (Exceptions: starmetal)",
-            "vector": [0.0] * 384,
+            "vector": unit_vec,
             "entity_ids": [],
             "aliases": [],
             "temporal_scope": "GLOBAL",
@@ -296,7 +297,7 @@ async def test_memory_search_retrieves_all_six_types() -> None:
             "memory_type": "story_thread",
             "subject_entity_id": "story_thread",
             "canonical_text": "Lost Crown of Dunhaven: Unresolved quest (Status: OPEN)",
-            "vector": [0.0] * 384,
+            "vector": unit_vec,
             "entity_ids": ["ent_1"],
             "aliases": [],
             "temporal_scope": "GLOBAL",

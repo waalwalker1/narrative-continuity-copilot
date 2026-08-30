@@ -167,7 +167,18 @@ def sync_metrics(write_mode: bool = False) -> bool:
             print(f"Successfully synchronized benchmark metrics into {doc.name}.")
         else:
             if doc_content.strip() != updated_doc.strip():
-                print(f"Error: {doc.name} metrics are out of sync with {SUMMARY_FILE}.")
+                import difflib
+
+                print(f"Error: {doc.name} metrics are out of sync with {SUMMARY_FILE}:")
+                diff = difflib.unified_diff(
+                    doc_content.splitlines(),
+                    updated_doc.splitlines(),
+                    fromfile=f"committed/{doc.name}",
+                    tofile=f"generated/{doc.name}",
+                    lineterm="",
+                )
+                for line in diff:
+                    print(f"  {line}")
                 print("Run 'python scripts/sync_public_metrics.py --write' to synchronize.")
                 all_ok = False
             else:

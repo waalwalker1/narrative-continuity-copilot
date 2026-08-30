@@ -184,7 +184,7 @@ class ElasticsearchEngine:
                         raise ValueError(
                             f"Chunk document {chunk_id} missing 384-dimensional text_vector in FULL_REFERENCE mode."
                         )
-                    doc_copy["text_vector"] = [0.0] * 384
+                    doc_copy["text_vector"] = [1.0] + [0.0] * 383
                 client.index(index=CHUNKS_INDEX, id=chunk_id, document=doc_copy, refresh=True)
             except Exception as exc:
                 if not self.allow_fallback:
@@ -215,7 +215,7 @@ class ElasticsearchEngine:
                             raise ValueError(
                                 f"Chunk {d.get('chunk_id')} missing 384-dimensional text_vector in FULL_REFERENCE mode."
                             )
-                        doc_copy["text_vector"] = [0.0] * 384
+                        doc_copy["text_vector"] = [1.0] + [0.0] * 383
                     client.index(index=CHUNKS_INDEX, id=d["chunk_id"], document=doc_copy)
                 client.indices.refresh(index=CHUNKS_INDEX)
             except Exception as exc:
@@ -245,7 +245,7 @@ class ElasticsearchEngine:
                         raise ValueError(
                             f"Memory doc {doc_id} missing 384-dimensional vector in FULL_REFERENCE mode."
                         )
-                    doc_copy["vector"] = [0.0] * 384
+                    doc_copy["vector"] = [1.0] + [0.0] * 383
                 client.index(index=MEMORY_INDEX, id=doc_id, document=doc_copy)
                 client.indices.refresh(index=MEMORY_INDEX)
             except Exception as exc:
@@ -277,7 +277,7 @@ class ElasticsearchEngine:
                             raise ValueError(
                                 f"Memory doc {d.get('doc_id')} missing 384-dimensional vector in FULL_REFERENCE mode."
                             )
-                        doc_copy["vector"] = [0.0] * 384
+                        doc_copy["vector"] = [1.0] + [0.0] * 383
                     client.index(index=MEMORY_INDEX, id=d["doc_id"], document=doc_copy)
                 client.indices.refresh(index=MEMORY_INDEX)
             except Exception as exc:
