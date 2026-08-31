@@ -1,15 +1,27 @@
-# Ablation Studies Report
+# System & Subsystem Ablations Report
 
-| Configuration | Description | Continuity F1 | Delta F1 | Retrieval Recall@5 |
-|---|---|---|---|---|
-| A_bm25_only | Lexical BM25 retrieval without dense semantic vectors | 89.7% | +0.00 | 99.0% |
-| B_dense_only | Dense vector search without BM25 keyword matching | 89.7% | +0.00 | 100.0% |
-| C_hybrid_retrieval | Reciprocal Rank Fusion of BM25 and dense embeddings | 89.7% | +0.00 | 99.0% |
-| D_hybrid_plus_alias_expansion | Hybrid retrieval with alias and nickname graph expansion | 89.7% | +0.00 | 99.0% |
-| E_hybrid_plus_structured_story_memory | Hybrid retrieval combined with structured memory entity filters | 89.7% | +0.00 | 99.0% |
-| F_without_temporal_scoping | System without timeline event and temporal scope filters | 89.7% | +0.00 | 99.0% |
-| G_without_narrative_epistemic_scoping | System treating dreams, rumors, and POV beliefs as global canon | 82.1% | -0.08 | 99.0% |
-| H_without_evidence_critic | System without pre-alert evidence validation gate | 89.7% | +0.00 | 99.0% |
-| I_without_author_intentionality_rules | System without author suppression and exception persistence | 89.7% | +0.00 | 99.0% |
-| J_long_context_baseline | Direct un-indexed context baseline over raw manuscript chunks | 89.7% | +0.00 | 99.0% |
-| K_full_system | Full hybrid retrieval, structured memory, epistemic reasoning, critic, and validator | 89.7% | +0.00 | 99.0% |
+## 1. Measured End-to-End Continuity System Ablations
+
+| Configuration | Description | Continuity F1 | Delta vs Full | Precision | Recall | Status |
+|---|---|---|---|---|---|---|
+| **Full Reference System** | Full hybrid retrieval, structured memory, epistemic reasoning, critic, and validator | 93.7% | +0.00 | 99.4% | 88.6% | `MEASURED` |
+| **Without Epistemic Scoping** | System treating dreams, rumors, and POV beliefs as global canon | 82.1% | -0.12 | 76.5% | 88.6% | `MEASURED` |
+| **Raw Context Baseline** | Direct un-indexed context baseline over raw recent manuscript chunks (first 5 blocks only) | 94.0% | +0.00 | 100.0% | 88.6% | `MEASURED` |
+
+## 2. Measured Retrieval Mode Comparisons (Canonical Evaluator)
+
+| Retrieval Mode | Recall@1 | Recall@5 | Recall@10 | MRR | nDCG@10 | Exact Anchor Hit |
+|---|---|---|---|---|---|---|
+| **BM25 Lexical Retrieval Only** | 65.6% | 99.0% | 100.0% | 0.7569 | 0.8194 | 100.0% |
+| **Dense Vector Search Only** | 75.0% | 100.0% | 100.0% | 0.7948 | 0.8461 | 92.7% |
+| **Hybrid RRF Retrieval** | 65.6% | 99.0% | 100.0% | 0.7639 | 0.8241 | 100.0% |
+| **Hybrid + Alias Expansion** | 65.6% | 99.0% | 100.0% | 0.7639 | 0.8241 | 100.0% |
+| **Hybrid + Story Memory Filter** | 65.6% | 99.0% | 100.0% | 0.7639 | 0.8241 | 100.0% |
+
+## 3. Subsystem Ablations (Auxiliary / Not Measured on Held-Out Cohort)
+
+| Component | Measurement Status | Diagnostic Reason |
+|---|---|---|
+| **Temporal Scoping (F)** | `NO_MEASURABLE_DELTA_ON_CURRENT_COHORT` | No temporal order contradictions are masked by time filtering in current 16 held-out story packs. |
+| **Evidence Critic (H)** | `NO_MEASURABLE_DELTA_ON_CURRENT_COHORT` | Current gold evaluation fixtures contain well-formed citation anchors that pass critic validation. |
+| **Author Preconditions (I)** | `NOT_MEASURED` | Not measured on main corpus because no author decision overrides are persisted in the cold held-out story packs. |

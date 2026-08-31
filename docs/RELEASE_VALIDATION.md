@@ -1,7 +1,7 @@
 # Release Validation Evidence
 
 ## Environment Specifications
-- **Benchmark Source Commit**: `447fe4c4935e691167c00eef3c2ecb082a067914`
+- **Benchmark Source Commit**: `e12791a1cc61913661766d243db01bd3c1a6d21c`
 - **Python Runtime**: Python 3.12 (CPython x86_64/arm64)
 - **Node Runtime**: Node.js v20.x
 - **Search Backend**: Elasticsearch 8.14.0 (BM25 + 384-dimensional dense vectors)

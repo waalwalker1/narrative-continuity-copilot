@@ -1,5 +1,5 @@
 {
-  "benchmark_source_commit": "447fe4c4935e691167c00eef3c2ecb082a067914",
+  "benchmark_source_commit": "e12791a1cc61913661766d243db01bd3c1a6d21c",
   "execution_timestamp": "2026-08-31T08:33:13.000612+00:00",
   "os_version": "Darwin 25.6.0",
   "architecture": "arm64",
@@ -12,7 +12,7 @@
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "embedding_dimension": 384,
   "embedding_mode": "sentence_transformer",
-  "search_mode": "LOCAL_LIGHT",
+  "search_mode": "FULL_REFERENCE",
   "sentence_transformers_version": "6.0.0",
   "torch_version": "2.13.0",
   "dataset_sha": "eeb7a8df6128bbbdec6072995111c67250c2a1b0ffbd33b24738a88fe23123ea",

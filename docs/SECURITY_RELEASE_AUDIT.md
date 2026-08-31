@@ -8,7 +8,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 <!-- SECURITY_METRIC_BLOCK_START -->
 ### 1. Benchmark Split Integrity
 - **Test**: Scanned benchmark case generation logic to verify whether story packs are partitioned at the story level or sentence pair level.
-- **Finding**: Partitions are strictly story-level (32 train packs vs 16 held-out evaluation packs, 576 total cases). Zero entity names or story texts from held-out packs appear in training fixtures.
+- **Finding**: Partitions are strictly story-level (384 train cases across 32 packs vs 192 held-out evaluation cases across 16 packs, 576 total cases). Zero entity names or story texts from held-out packs appear in training fixtures.
 - **Result**: **PASS**
 
 ### 2. Evidence Citation Grounding
@@ -23,7 +23,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ### 4. Prompt Injection & Boundary Security
 - **Test**: Executed 40 authored adversarial creative prose fixtures containing role escapes, instructions to ignore previous rules, fake XML tags, and canon override attempts under the reference provider.
-- **Finding**: 40/40 authored adversarial manuscript-boundary fixtures passed under the deterministic reference provider with complete system instruction separation, JSON envelope serialization, and deterministic validation.
+- **Finding**: 40/40 authored adversarial manuscript-boundary fixtures passed (100.0%) under the deterministic reference provider with complete system instruction separation, JSON envelope serialization, and deterministic validation.
 - **Result**: **PASS**
 <!-- SECURITY_METRIC_BLOCK_END -->
 

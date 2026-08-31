@@ -1,4 +1,4 @@
-# Retrieval Evaluation Report
+# Hybrid Retrieval & Ranking Evaluation Report
 
 ## Summary
 Retrieval performance measured across BM25 lexical, dense SentenceTransformers vector search, and Reciprocal Rank Fusion (RRF).
