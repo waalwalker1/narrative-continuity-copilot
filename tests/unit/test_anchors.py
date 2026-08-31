@@ -99,3 +99,68 @@ def test_reanchoring_deleted_block_invalidated() -> None:
     result = engine.reanchor(anchor, "rev_2", blocks)
     assert result.status == "INVALIDATED"
     assert result.updated_anchor is None
+
+
+def test_reanchoring_split_transferred_block() -> None:
+    engine = ReanchoringEngine()
+    quote = "silver talisman on the stone table"
+    anchor = SourceAnchor(
+        anchor_id="anc_split",
+        project_id="p1",
+        revision_id="rev_1",
+        chapter_id="c1",
+        block_id="blk_1",
+        char_start=20,
+        char_end=20 + len(quote),
+        text_hash=compute_text_hash(quote),
+        normalized_quote=quote,
+    )
+
+    blocks = [
+        StructuralUnit(
+            unit_id="blk_1",
+            project_id="p1",
+            revision_id="rev_2",
+            unit_type=UnitType.BLOCK,
+            text="Lord Arthur Vance examined the ",
+        ),
+        StructuralUnit(
+            unit_id="blk_1_split",
+            project_id="p1",
+            revision_id="rev_2",
+            unit_type=UnitType.BLOCK,
+            text="silver talisman on the stone table in the vault.",
+        ),
+    ]
+
+    result = engine.reanchor(anchor, "rev_2", blocks)
+    assert result.status == "TRANSFERRED_BLOCK"
+    assert result.updated_anchor is not None
+    assert result.updated_anchor.block_id == "blk_1_split"
+
+
+def test_anchor_benchmark_runner_mathematics_bounds() -> None:
+    from evals.runners.anchors_runner import AnchorBenchmarkRunner
+
+    runner = AnchorBenchmarkRunner()
+    results = runner.run_benchmark(num_ops=220)
+
+    # Invariant: all rates and accuracies must be in [0.0, 1.0]
+    for key in [
+        "exact_match_accuracy",
+        "realignment_accuracy",
+        "transfer_accuracy",
+        "invalidation_accuracy",
+        "invalidation_precision",
+        "false_reanchor_rate",
+        "expected_outcome_accuracy",
+        "retention_rate",
+    ]:
+        val = results[key]
+        assert 0.0 <= val <= 1.0, f"Metric '{key}' has invalid value {val}"
+
+    # Verify confusion matrix sums
+    cm = results["confusion_matrix"]
+    total_in_cm = sum(sum(row.values()) for row in cm.values())
+    assert total_in_cm == results["total_operations"] == 220
+    assert results["false_reanchor_rate"] == 0.0

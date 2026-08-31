@@ -102,4 +102,28 @@ describe("Frontend Vue Components & Stores", () => {
     expect(wrapper.text()).toContain("eye_color");
     expect(wrapper.text()).toContain("dark");
   });
+
+  it("safely handles XSS payloads in editor content without execution (SVG, MathML, script)", async () => {
+    (window as any).__xss = undefined;
+    const store = useManuscriptStore();
+    const maliciousPayload =
+      '<svg onload="window.__xss = true"></svg>\n' +
+      "<math><mtext></mtext></math>\n" +
+      "<script>window.__xss = true</script>\n" +
+      '<img src=x onerror="window.__xss = true">\n' +
+      "Lord Arthur Vance examined the ancient manuscript.";
+
+    store.editorContent = maliciousPayload;
+    const { default: QuillEditor } = await import("@/components/QuillEditor.vue");
+    const wrapper = mount(QuillEditor, {
+      attachTo: document.body,
+    });
+
+    // Verify window.__xss was NOT triggered
+    expect((window as any).__xss).toBeUndefined();
+
+    // Verify manuscript prose is preserved as plain text
+    expect(wrapper.text()).toContain("Lord Arthur Vance examined the ancient manuscript.");
+    wrapper.unmount();
+  });
 });

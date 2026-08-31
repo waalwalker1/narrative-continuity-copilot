@@ -64,7 +64,7 @@ security:
 
 build:
 	npm run build
-	$(PYTHON) -m build || true
+	$(PYTHON) -m build
 
 docker-smoke:
 	python3 scripts/docker_smoke.py
@@ -74,7 +74,7 @@ verify-local: lint typecheck test test-integration eval security
 release-check: verify-local
 	PYTHONPATH=. $(PYTHON) scripts/sync_public_metrics.py --check
 	npm run build
-	@echo "All release gates verified successfully!"
+	@echo "Local release validation gates verified successfully."
 
 clean:
 	rm -rf .pytest_cache .coverage htmlcov coverage.xml .mypy_cache .ruff_cache apps/web/dist node_modules/.vite *.db

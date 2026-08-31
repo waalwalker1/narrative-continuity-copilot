@@ -82,9 +82,9 @@ export const useManuscriptStore = defineStore("manuscript", {
     syncEditorContentForActiveChapter() {
       const blocks = this.currentChapterBlocks;
       if (blocks.length > 0) {
-        this.editorContent = blocks.map((b) => `<p data-block-id="${b.unit_id}">${b.text}</p>`).join("");
+        this.editorContent = blocks.map((b) => b.text).join("\n\n");
       } else {
-        this.editorContent = "<p>No content in this chapter yet.</p>";
+        this.editorContent = "No content in this chapter yet.";
       }
     },
 

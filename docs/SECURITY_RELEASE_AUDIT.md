@@ -17,12 +17,12 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ### 3. Anchor Stability & Edit Invariants
 - **Test**: Executed 220 edit operations (insertions, deletions, splits, merges, renames) via Hypothesis property tests and the benchmark suite.
-- **Finding**: False re-anchor rate is 0.0%. When confidence falls below 65%, anchors are invalidated cleanly rather than silently moving to unrelated text.
+- **Finding**: False re-anchor rate is 0.0% with an Expected-Outcome Accuracy of 88.6%. When confidence falls below 65%, anchors are invalidated cleanly rather than silently moving to unrelated text.
 - **Result**: **PASS**
 
 ### 4. Prompt Injection & Boundary Security
-- **Test**: Executed 40 adversarial creative prose fixtures containing role escapes, instructions to ignore previous rules, fake XML tags, and canon override attempts.
-- **Finding**: System instruction separation, JSON envelope serialization, and deterministic validation prevented 100% of injection attempts.
+- **Test**: Executed 40 authored adversarial creative prose fixtures containing role escapes, instructions to ignore previous rules, fake XML tags, and canon override attempts under the reference provider.
+- **Finding**: 40/40 authored adversarial manuscript-boundary fixtures passed under the deterministic reference provider with complete system instruction separation, JSON envelope serialization, and deterministic validation.
 - **Result**: **PASS**
 
 ### 5. Privacy & Zero-Data-Leak Audit
@@ -37,7 +37,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ### 7. Dependency & Security Vulnerability Assessment
 - **Python Dependencies**: `pip-audit` scanned python environment with zero vulnerable dependencies.
-- **Frontend Dependencies**: `npm audit` evaluated against fail-closed security gate (`scripts/npm_audit_gate.py`). Known upstream dev advisories (`GHSA-v3m3-f69x-jf25` for Quill rich text editor, `GHSA-fx2h-pf6j-xcff` for Vite dev server) are comprehensively documented with zero-exploitability proofs and compensating controls in `docs/security/ACCEPTED_RISKS.md`. Review date: 2026-08-30.
+- **Frontend Dependencies**: `npm audit` evaluated against fail-closed security gate (`scripts/npm_audit_gate.py`). Known upstream dev advisories (`GHSA-v3m3-f69x-jf25` for Quill rich text editor, `GHSA-fx2h-pf6j-xcff` for Vite dev server) are comprehensively documented with exploitability assessments, unit/E2E regression tests, and compensating controls in `docs/security/ACCEPTED_RISKS.md`. Review date: 2026-08-31.
 - **Secret Baseline**: `detect-secrets` scan verified clean baseline with 0 detected secrets across all tracked code, configuration, scripts, and documentation files.
 - **Result**: **PASS**
 

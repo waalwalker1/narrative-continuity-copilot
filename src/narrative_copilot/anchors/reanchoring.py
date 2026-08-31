@@ -53,10 +53,14 @@ class ReanchoringEngine:
         if anchor.block_id in blocks_by_id:
             target_block = blocks_by_id[anchor.block_id]
             target_text = target_block.text
-            target_hash = compute_text_hash(target_text)
+            quote = anchor.normalized_quote.strip()
 
-            # 1a. Exact text hash match
-            if anchor.text_hash == target_hash:
+            # 1a. Exact text span match at preserved character offsets
+            exact_offset_match = (
+                0 <= anchor.char_start < anchor.char_end <= len(target_text)
+                and target_text[anchor.char_start : anchor.char_end] == quote
+            )
+            if exact_offset_match:
                 new_anchor = anchor.model_copy(
                     update={
                         "revision_id": target_revision_id,
@@ -68,7 +72,7 @@ class ReanchoringEngine:
                     status="EXACT_MATCH",
                     confidence=self.CONFIDENCE_EXACT,
                     updated_anchor=new_anchor,
-                    reason="Block text and hash perfectly preserved.",
+                    reason="Block text and anchor span perfectly preserved at original offset.",
                 )
 
             # 1b. Substring match inside modified block

@@ -17,6 +17,7 @@
 ## Measured Benchmark Results
 *All metrics generated deterministically by `evals/runners/run_all.py` and synchronized into `artifacts/evals/latest/summary.json`.*
 
+<!-- METRIC_BLOCK_START -->
 ### Retrieval Metrics
 - **BM25 Only Recall@5**: 99.0% (MRR: 0.7569)
 - **Dense Only Recall@5**: 100.0% (MRR: 0.7948)
@@ -34,19 +35,23 @@
 
 ### Anchor Stability & Edit Re-anchoring
 - **Operations Evaluated**: 220 edit mutations
-- **Exact Retention**: 0.0% (all mutations involve modifications/splits/moves)
-- **Re-anchor Accuracy**: 100.0%
+- **Expected-Outcome Accuracy**: 88.6%
+- **Exact Match Accuracy**: 100.0%
+- **Realignment Accuracy**: 79.7%
+- **Transfer Accuracy**: 100.0%
+- **Invalidation Accuracy**: 100.0%
+- **Invalidation Precision**: 49.0%
 - **False Re-anchor Rate**: 0.0%
-- **Clean Invalidation Rate**: 100.0%
 
 ### Prompt-Injection Red-Teaming
 - **Total Adversarial Fixtures**: 40/40 passed (100.0% pass rate)
 - **Security Boundary Invariants**: Complete isolation between untrusted manuscript prose and system instruction roles.
 
 ### Long Manuscript Benchmark (96,755 words)
-- **Indexing Throughput**: ~11,000 words/sec
+- **Indexing Throughput**: ~11,083 words/sec
 - **Retrieval Latency (p50 / p95)**: 29.2 ms / 42.3 ms
 - **Long-Distance Evidence Recall**: 100.0%
+<!-- METRIC_BLOCK_END -->
 
 ### Software Quality & Test Gates
 - **Backend Unit & Property Tests**: 100% passing (Hypothesis + Pytest)

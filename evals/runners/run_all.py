@@ -30,11 +30,11 @@ async def main() -> None:
     import subprocess
     from datetime import UTC, datetime
 
-    print("=== Running Narrative Continuity Copilot Evaluation Suite ===")
+    print("=== Running Narrative Continuity Copilot Evaluation Suite ===", flush=True)
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # 0. Startup assertions for Canonical Full-Reference Benchmark
-    print("[0/8] Validating benchmark runtime invariants (fail-closed)...")
+    print("[0/8] Validating benchmark runtime invariants (fail-closed)...", flush=True)
     search_mode = os.getenv("SEARCH_MODE", "full_reference").lower().strip()
     embedding_mode = os.getenv("EMBEDDING_MODE", "sentence_transformer").lower().strip()
     use_det = os.getenv("USE_DETERMINISTIC_EMBEDDINGS") == "1"
@@ -62,34 +62,40 @@ async def main() -> None:
             )
 
     # 1. Dataset Generation
-    print("[1/8] Generating synthetic dataset (48 story packs, 576 cases across 12 classes)...")
+    print(
+        "[1/8] Generating synthetic dataset (48 story packs, 576 cases across 12 classes)...",
+        flush=True,
+    )
     manifest = save_synthetic_dataset(FIXTURES_DIR)
     manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
     (ARTIFACTS_DIR / "DATASET_MANIFEST.json").write_bytes(manifest_bytes)
     dataset_sha = hashlib.sha256(manifest_bytes).hexdigest()
 
     # 2. Retrieval Benchmark
-    print("[2/8] Running Retrieval Evaluation (BM25, Dense, Hybrid)...")
+    print("[2/8] Running Retrieval Evaluation (BM25, Dense, Hybrid)...", flush=True)
     retrieval_runner = RetrievalEvaluator(FIXTURES_DIR)
     retrieval_metrics = await retrieval_runner.run_evaluation()
 
     # 3. Continuity Benchmark
-    print("[3/8] Running End-to-End Continuity Evaluation (16 Held-Out Packs, 12 Classes)...")
+    print(
+        "[3/8] Running End-to-End Continuity Evaluation (16 Held-Out Packs, 12 Classes)...",
+        flush=True,
+    )
     continuity_runner = ContinuityEvaluator(FIXTURES_DIR)
     continuity_metrics = await continuity_runner.run_evaluation()
 
     # 4. Anchor Edit Benchmark
-    print("[4/8] Running Anchor Edit Stability Benchmark (>=200 operations)...")
+    print("[4/8] Running Anchor Edit Stability Benchmark (>=200 operations)...", flush=True)
     anchor_runner = AnchorBenchmarkRunner()
     anchor_metrics = anchor_runner.run_benchmark(220)
 
     # 5. Incremental Indexing Benchmark
-    print("[5/8] Running Incremental Indexing Benchmark (100 scenarios)...")
+    print("[5/8] Running Incremental Indexing Benchmark (100 scenarios)...", flush=True)
     inc_runner = IncrementalBenchmarkRunner()
     inc_metrics = await inc_runner.run_benchmark(100)
 
     # 6. Prompt Injection Security Benchmark
-    print("[6/8] Running Prompt Injection Security Suite (40 fixtures)...")
+    print("[6/8] Running Prompt Injection Security Suite (40 fixtures)...", flush=True)
     injection_runner = InjectionBenchmarkRunner()
     injection_metrics = await injection_runner.run_benchmark()
     (ARTIFACTS_DIR / "PROMPT_INJECTION_CASES.json").write_text(
@@ -97,12 +103,12 @@ async def main() -> None:
     )
 
     # 7. Long Manuscript Stress Benchmark
-    print("[7/8] Running Long Manuscript Stress Benchmark (65k words, 30 needles)...")
+    print("[7/8] Running Long Manuscript Stress Benchmark (65k words, 30 needles)...", flush=True)
     long_runner = LongManuscriptRunner()
     long_metrics = await long_runner.run_stress_test(65000)
 
     # 8. Ablation Studies
-    print("[8/8] Computing Ablation Studies A through K...")
+    print("[8/8] Computing Ablation Studies A through K...", flush=True)
     ablation_runner = AblationRunner(FIXTURES_DIR)
     ablation_metrics = await ablation_runner.run_all_ablations(
         retrieval_metrics, continuity_metrics
@@ -318,20 +324,33 @@ Retrieval performance measured across BM25 lexical, dense SentenceTransformers v
     (ARTIFACTS_DIR / "CLASS_BREAKDOWN.md").write_text("\n".join(cb_lines) + "\n")
 
     # 4. ANCHOR_STABILITY_REPORT.md
+    cm = anchors.get("confusion_matrix", {})
+    exp_c = anchors.get("expected_counts", {})
+    act_c = anchors.get("actual_counts", {})
+
     anc_md = f"""# Anchor Stability & Re-anchoring Report
 
+## Aggregate Performance
 - **Total Edit Operations Evaluated**: {anchors["total_operations"]}
-- **Exact Match Retention**: {anchors["exact_matches"]} ({anchors["retention_rate"]:.1%})
+- **Expected-Outcome Accuracy**: {anchors.get("expected_outcome_accuracy", 0.0):.1%}
+- **False Re-anchor Rate**: {anchors.get("false_reanchor_rate", 0.0):.1%} ({anchors.get("false_reanchors", 0)} false re-anchors)
+- **Exact Match Retention**: {anchors["exact_matches"]} ({anchors.get("retention_rate", 0.0):.1%})
+
+## Per-Class Accuracy & Precision
 - **Exact Match Accuracy**: {anchors.get("exact_match_accuracy", 1.0):.1%}
-- **Realigned Offsets**: {anchors["realigned"]}
 - **Realignment Accuracy**: {anchors.get("realignment_accuracy", 1.0):.1%}
-- **Transferred Blocks**: {anchors["transferred_blocks"]}
 - **Transfer Accuracy**: {anchors.get("transfer_accuracy", 1.0):.1%}
-- **Invalidated Cleanly**: {anchors["invalidated"]}
+- **Invalidation Accuracy**: {anchors.get("invalidation_accuracy", 1.0):.1%}
 - **Invalidation Precision**: {anchors.get("invalidation_precision", 1.0):.1%}
-- **False Re-anchors**: {anchors["false_reanchors"]} ({anchors["false_reanchor_rate"]:.1%})
-- **Re-anchor Accuracy**: {anchors["reanchor_accuracy"]:.1%}
-- **Expected Outcome Accuracy**: {anchors.get("expected_outcome_accuracy", anchors["reanchor_accuracy"]):.1%}
+
+## Expected vs Actual Confusion Matrix
+| Expected \\ Actual | EXACT_MATCH | REALIGNED | TRANSFERRED_BLOCK | INVALIDATED | Total Expected |
+|---|---|---|---|---|---|
+| **EXACT_MATCH** | {cm.get("EXACT_MATCH", {}).get("EXACT_MATCH", 0)} | {cm.get("EXACT_MATCH", {}).get("REALIGNED", 0)} | {cm.get("EXACT_MATCH", {}).get("TRANSFERRED_BLOCK", 0)} | {cm.get("EXACT_MATCH", {}).get("INVALIDATED", 0)} | {exp_c.get("EXACT_MATCH", 0)} |
+| **REALIGNED** | {cm.get("REALIGNED", {}).get("EXACT_MATCH", 0)} | {cm.get("REALIGNED", {}).get("REALIGNED", 0)} | {cm.get("REALIGNED", {}).get("TRANSFERRED_BLOCK", 0)} | {cm.get("REALIGNED", {}).get("INVALIDATED", 0)} | {exp_c.get("REALIGNED", 0)} |
+| **TRANSFERRED_BLOCK** | {cm.get("TRANSFERRED_BLOCK", {}).get("EXACT_MATCH", 0)} | {cm.get("TRANSFERRED_BLOCK", {}).get("REALIGNED", 0)} | {cm.get("TRANSFERRED_BLOCK", {}).get("TRANSFERRED_BLOCK", 0)} | {cm.get("TRANSFERRED_BLOCK", {}).get("INVALIDATED", 0)} | {exp_c.get("TRANSFERRED_BLOCK", 0)} |
+| **INVALIDATED** | {cm.get("INVALIDATED", {}).get("EXACT_MATCH", 0)} | {cm.get("INVALIDATED", {}).get("REALIGNED", 0)} | {cm.get("INVALIDATED", {}).get("TRANSFERRED_BLOCK", 0)} | {cm.get("INVALIDATED", {}).get("INVALIDATED", 0)} | {exp_c.get("INVALIDATED", 0)} |
+| **Total Actual** | {act_c.get("EXACT_MATCH", 0)} | {act_c.get("REALIGNED", 0)} | {act_c.get("TRANSFERRED_BLOCK", 0)} | {act_c.get("INVALIDATED", 0)} | {anchors["total_operations"]} |
 """
     (ARTIFACTS_DIR / "ANCHOR_STABILITY_REPORT.md").write_text(anc_md.strip() + "\n")
 

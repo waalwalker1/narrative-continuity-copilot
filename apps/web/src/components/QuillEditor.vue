@@ -55,7 +55,7 @@ onMounted(() => {
       },
     });
 
-    quillInstance.root.innerHTML = store.editorContent;
+    quillInstance.setText(store.editorContent);
 
     quillInstance.on("text-change", () => {
       const text = quillInstance?.getText() || "";
@@ -68,8 +68,8 @@ onMounted(() => {
 watch(
   () => store.editorContent,
   (newContent) => {
-    if (quillInstance && quillInstance.root.innerHTML !== newContent) {
-      quillInstance.root.innerHTML = newContent;
+    if (quillInstance && quillInstance.getText().trim() !== newContent.trim()) {
+      quillInstance.setText(newContent);
       const text = quillInstance.getText() || "";
       wordCount.value = text.trim().split(/\s+/).filter(Boolean).length;
     }

@@ -73,7 +73,9 @@ class SentenceTransformerEmbeddingProvider:
         model = self._get_model()
         if isinstance(model, DeterministicEmbeddingStub):
             return model.encode(texts)
-        embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+        embeddings = model.encode(
+            texts, batch_size=64, normalize_embeddings=True, show_progress_bar=False
+        )
         return embeddings.tolist()  # type: ignore[no-any-return]
 
     async def aencode(self, texts: list[str]) -> list[list[float]]:
