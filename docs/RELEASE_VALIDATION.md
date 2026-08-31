@@ -1,7 +1,7 @@
 # Release Validation Evidence
 
 ## Environment Specifications
-- **Benchmark Source Commit**: `df05df8b6d360eb5c4d40213bffee17cde62cbca`
+- **Benchmark Source Commit**: `447fe4c4935e691167c00eef3c2ecb082a067914`
 - **Python Runtime**: Python 3.12 (CPython x86_64/arm64)
 - **Node Runtime**: Node.js v20.x
 - **Search Backend**: Elasticsearch 8.14.0 (BM25 + 384-dimensional dense vectors)
@@ -48,8 +48,8 @@
 - **Security Boundary Invariants**: Complete isolation between untrusted manuscript prose and system instruction roles.
 
 ### Long Manuscript Benchmark (96,755 words)
-- **Indexing Throughput**: ~11,083 words/sec
-- **Retrieval Latency (p50 / p95)**: 29.2 ms / 42.3 ms
+- **Indexing Throughput**: ~11,938 words/sec
+- **Retrieval Latency (p50 / p95)**: 20.3 ms / 23.9 ms
 - **Long-Distance Evidence Recall**: 100.0%
 <!-- METRIC_BLOCK_END -->
 

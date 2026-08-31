@@ -1,10 +1,10 @@
 {
   "benchmark_version": "1.0.0",
-  "benchmark_source_commit": "df05df8b6d360eb5c4d40213bffee17cde62cbca",
+  "benchmark_source_commit": "447fe4c4935e691167c00eef3c2ecb082a067914",
   "dataset": {
     "benchmark_version": "1.0.0",
     "generator_version": "2.0.0-reference",
-    "generated_at": "2026-08-30T18:13:31.304174+00:00",
+    "generated_at": "2026-08-31T08:25:20.376538+00:00",
     "corpus_sha256": "4b545d0ab2beef2735595cfbe4f82f231af97f4911ca83af090906736121efda",
     "story_packs_count": 48,
     "train_story_ids": [
@@ -191,19 +191,58 @@
   },
   "anchors": {
     "total_operations": 220,
-    "exact_matches": 0,
-    "realigned": 148,
-    "transferred_blocks": 48,
-    "invalidated": 24,
-    "false_reanchors": 0,
-    "retention_rate": 0.0,
-    "reanchor_accuracy": 1.0,
-    "false_reanchor_rate": 0.0,
-    "exact_match_accuracy": 0.0,
-    "realignment_accuracy": 1.2033,
+    "expected_counts": {
+      "EXACT_MATCH": 25,
+      "REALIGNED": 123,
+      "TRANSFERRED_BLOCK": 48,
+      "INVALIDATED": 24
+    },
+    "actual_counts": {
+      "EXACT_MATCH": 25,
+      "REALIGNED": 98,
+      "TRANSFERRED_BLOCK": 48,
+      "INVALIDATED": 49
+    },
+    "confusion_matrix": {
+      "EXACT_MATCH": {
+        "EXACT_MATCH": 25,
+        "REALIGNED": 0,
+        "TRANSFERRED_BLOCK": 0,
+        "INVALIDATED": 0
+      },
+      "REALIGNED": {
+        "EXACT_MATCH": 0,
+        "REALIGNED": 98,
+        "TRANSFERRED_BLOCK": 0,
+        "INVALIDATED": 25
+      },
+      "TRANSFERRED_BLOCK": {
+        "EXACT_MATCH": 0,
+        "REALIGNED": 0,
+        "TRANSFERRED_BLOCK": 48,
+        "INVALIDATED": 0
+      },
+      "INVALIDATED": {
+        "EXACT_MATCH": 0,
+        "REALIGNED": 0,
+        "TRANSFERRED_BLOCK": 0,
+        "INVALIDATED": 24
+      }
+    },
+    "exact_match_accuracy": 1.0,
+    "realignment_accuracy": 0.7967,
     "transfer_accuracy": 1.0,
-    "invalidation_precision": 1.0,
-    "expected_outcome_accuracy": 0.8864
+    "invalidation_accuracy": 1.0,
+    "invalidation_precision": 0.4898,
+    "false_reanchors": 0,
+    "false_reanchor_rate": 0.0,
+    "expected_outcome_accuracy": 0.8864,
+    "exact_matches": 25,
+    "realigned": 98,
+    "transferred_blocks": 48,
+    "invalidated": 49,
+    "retention_rate": 0.1136,
+    "failure_cases_count": 25
   },
   "incremental_updates": {
     "scenarios_evaluated": 100,
@@ -218,10 +257,10 @@
     "manuscript_word_count": 96755,
     "total_blocks": 1605,
     "total_needles_evaluated": 30,
-    "indexing_time_seconds": 8.73,
-    "indexing_words_per_sec": 11082.6,
-    "retrieval_latency_p50_ms": 29.18,
-    "retrieval_latency_p95_ms": 42.28,
+    "indexing_time_seconds": 8.11,
+    "indexing_words_per_sec": 11937.6,
+    "retrieval_latency_p50_ms": 20.28,
+    "retrieval_latency_p95_ms": 23.87,
     "long_distance_evidence_recall": 1.0,
     "stratified_recall_by_distance": {
       "0_15k": 1.0,
