@@ -78,8 +78,8 @@ All metrics are evaluated over a held-out synthetic corpus generated across 6 di
 | Metric Category | Measured Score | Benchmark Context |
 |---|---|---|
 | **Synthetic Dataset** | 576 cases | 48 multi-chapter story packs across 6 fiction genres (384 Train / 192 Held-Out) |
-| **Hybrid Retrieval (RRF)** | 99.0% Recall@5 (MRR: 0.7969, nDCG@10: 0.8496) | BM25 + dense sentence-transformers (all-MiniLM-L6-v2) |
-| **BM25 Only Retrieval** | 99.0% Recall@5 (MRR: 0.8243) | Pure lexical inverted index search |
+| **Hybrid Retrieval (RRF)** | 99.0% Recall@5 (MRR: 0.7847, nDCG@10: 0.8403) | BM25 + dense sentence-transformers (all-MiniLM-L6-v2) |
+| **BM25 Only Retrieval** | 99.0% Recall@5 (MRR: 0.8226) | Pure lexical inverted index search |
 | **Dense Only Retrieval** | 100.0% Recall@5 (MRR: 0.7948) | Pure cosine KNN dense vector search |
 | **Exact Anchor Hit Rate** | 100.0% | Exact match to gold provenance anchor spans |
 | **Continuity Precision** | 90.7% | Evidence-grounded 12-class contradiction taxonomy |
@@ -90,8 +90,8 @@ All metrics are evaluated over a held-out synthetic corpus generated across 6 di
 | **Unsupported Claim Rate** | 0.0% | Deterministic rejection of hallucinated facts/citations |
 | **Anchor Expected-Outcome Accuracy** | 88.6% | 220 operations (exact: 100.0%, realign: 79.7%, transfer: 100.0%, invalidation precision: 49.0%) |
 | **Prompt-Injection Defense** | 40/40 passed (100.0%) | 40/40 authored adversarial manuscript-boundary fixtures passed under reference provider |
-| **Long-Manuscript Stress** | 100.0% Needle Recall | 96,755 words (7,968 words/sec indexing throughput) |
-| **Retrieval Latency** | 12.7ms p50 / 15.8ms p95 | High-throughput local hybrid search |
+| **Long-Manuscript Stress** | 100.0% Needle Recall | 96,755 words (9,153 words/sec indexing throughput) |
+| **Retrieval Latency** | 13.3ms p50 / 17.9ms p95 | High-throughput local hybrid search |
 <!-- METRIC_BLOCK_END -->
 
 ---

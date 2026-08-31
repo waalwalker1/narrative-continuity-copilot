@@ -12,7 +12,7 @@
 - **Stale Fact Removals Expected**: 10
 - **Stale Fact Removals Correctly Processed**: 10
 - **Stale Fact Removal Recall**: 100.0%
-- **Stale Fact Invalidation Precision**: 100.0%
+- **Stale Fact Invalidation Precision**: NOT_MEASURED
 - **Stale Fact Status**: `MEASURED`
 - **Fresh Fact Discovery Scenarios**: 100
 - **Fresh Facts Expected**: 100
@@ -20,4 +20,4 @@
 - **Fresh Fact Extraction Recall**: 10.0%
 
 ## Benchmark Limitations
-Structured fresh-fact extraction is conservative under the deterministic reference extractor (discovering ~10% on explicit attribute statements).
+Structured fresh-fact extraction is conservative under the deterministic reference extractor (discovering ~10% on explicit attribute statements). Stale-fact precision is marked NOT_MEASURED due to the absence of false-invalidation negative denominators across untouched paragraphs.

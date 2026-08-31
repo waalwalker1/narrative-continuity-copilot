@@ -1,6 +1,6 @@
 {
-  "benchmark_source_commit": "e12791a1cc61913661766d243db01bd3c1a6d21c",
-  "execution_timestamp": "2026-08-31T08:33:13.000612+00:00",
+  "benchmark_source_commit": "6569aa5dd47d76318fe4ea455ae540b439ac1dac",
+  "execution_timestamp": "2026-08-31T14:39:53.876155+00:00",
   "os_version": "Darwin 25.6.0",
   "architecture": "arm64",
   "python_version": "3.12.13",
@@ -15,7 +15,7 @@
   "search_mode": "FULL_REFERENCE",
   "sentence_transformers_version": "6.0.0",
   "torch_version": "2.13.0",
-  "dataset_sha": "eeb7a8df6128bbbdec6072995111c67250c2a1b0ffbd33b24738a88fe23123ea",
+  "dataset_sha": "0672109ed5a33c96d9c04238a7279a538ccea14358d30c7c5189ab7cd1a798ff",
   "random_seed": 42,
   "runner": "evals.runners.run_all"
 }

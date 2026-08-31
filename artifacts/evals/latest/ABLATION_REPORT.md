@@ -4,19 +4,19 @@
 
 | Configuration | Description | Continuity F1 | Delta vs Full | Precision | Recall | Status |
 |---|---|---|---|---|---|---|
-| **Full Reference System** | Full hybrid retrieval, structured memory, epistemic reasoning, critic, and validator | 93.7% | +0.00 | 99.4% | 88.6% | `MEASURED` |
-| **Without Epistemic Scoping** | System treating dreams, rumors, and POV beliefs as global canon | 82.1% | -0.12 | 76.5% | 88.6% | `MEASURED` |
-| **Raw Context Baseline** | Direct un-indexed context baseline over raw recent manuscript chunks (first 5 blocks only) | 94.0% | +0.00 | 100.0% | 88.6% | `MEASURED` |
+| **Full Reference System** | Full hybrid retrieval, structured memory, epistemic reasoning, critic, and validator | 89.7% | +0.00 | 90.7% | 88.6% | `MEASURED` |
+| **Without Epistemic Scoping** | System treating dreams, rumors, and POV beliefs as global canon | 82.1% | -0.08 | 76.5% | 88.6% | `MEASURED` |
+| **Raw Context Baseline** | Direct un-indexed context baseline over raw recent manuscript chunks (first 5 blocks only) | 0.0% | -0.90 | 0.0% | 0.0% | `MEASURED` |
 
 ## 2. Measured Retrieval Mode Comparisons (Canonical Evaluator)
 
 | Retrieval Mode | Recall@1 | Recall@5 | Recall@10 | MRR | nDCG@10 | Exact Anchor Hit |
 |---|---|---|---|---|---|---|
-| **BM25 Lexical Retrieval Only** | 65.6% | 99.0% | 100.0% | 0.7569 | 0.8194 | 100.0% |
+| **BM25 Lexical Retrieval Only** | 69.8% | 99.0% | 100.0% | 0.8226 | 0.8679 | 100.0% |
 | **Dense Vector Search Only** | 75.0% | 100.0% | 100.0% | 0.7948 | 0.8461 | 92.7% |
-| **Hybrid RRF Retrieval** | 65.6% | 99.0% | 100.0% | 0.7639 | 0.8241 | 100.0% |
-| **Hybrid + Alias Expansion** | 65.6% | 99.0% | 100.0% | 0.7639 | 0.8241 | 100.0% |
-| **Hybrid + Story Memory Filter** | 65.6% | 99.0% | 100.0% | 0.7639 | 0.8241 | 100.0% |
+| **Hybrid RRF Retrieval** | 62.5% | 99.0% | 100.0% | 0.7847 | 0.8403 | 100.0% |
+| **Hybrid + Alias Expansion** | 62.5% | 99.0% | 100.0% | 0.7847 | 0.8403 | 100.0% |
+| **Hybrid + Story Memory Filter** | 62.5% | 99.0% | 100.0% | 0.7847 | 0.8403 | 100.0% |
 
 ## 3. Subsystem Ablations (Auxiliary / Not Measured on Held-Out Cohort)
 

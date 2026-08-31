@@ -1,7 +1,7 @@
 # Release Validation Evidence
 
 ## Environment Specifications
-- **Benchmark Source Commit**: `e12791a1cc61913661766d243db01bd3c1a6d21c`
+- **Benchmark Source Commit**: `6569aa5dd47d76318fe4ea455ae540b439ac1dac`
 - **Python Runtime**: Python 3.12 (CPython x86_64/arm64)
 - **Node Runtime**: Node.js v20.x
 - **Search Backend**: Elasticsearch 8.14.0 (BM25 + 384-dimensional dense vectors)
@@ -19,15 +19,15 @@
 
 <!-- METRIC_BLOCK_START -->
 ### Retrieval Metrics
-- **BM25 Only Recall@5**: 99.0% (MRR: 0.7569)
+- **BM25 Only Recall@5**: 99.0% (MRR: 0.8226)
 - **Dense Only Recall@5**: 100.0% (MRR: 0.7948)
-- **Hybrid RRF Recall@5**: **99.0%** (MRR: **0.7639**, nDCG@10: **0.8241**)
+- **Hybrid RRF Recall@5**: **99.0%** (MRR: **0.7847**, nDCG@10: **0.8403**)
 - **Exact Anchor Hit Rate**: 100.0%
 
 ### End-to-End Continuity Detection
-- **Precision**: 99.4%
+- **Precision**: 90.7%
 - **Recall**: 88.6%
-- **F1 Score**: 93.7%
+- **F1 Score**: 89.7%
 - **Macro F1 Score**: 86.7%
 - **Intentional Ambiguity FPR**: 0.0% (Dreams, rumors, lies, and POV beliefs correctly routed)
 - **Citation Provenance Validity**: 100.0% (Zero hallucinated or missing anchor citations)
@@ -48,8 +48,8 @@
 - **Security Boundary Invariants**: Complete isolation between untrusted manuscript prose and system instruction roles.
 
 ### Long Manuscript Benchmark (96,755 words)
-- **Indexing Throughput**: ~11,938 words/sec
-- **Retrieval Latency (p50 / p95)**: 20.3 ms / 23.9 ms
+- **Indexing Throughput**: ~9,153 words/sec
+- **Retrieval Latency (p50 / p95)**: 13.3 ms / 17.9 ms
 - **Long-Distance Evidence Recall**: 100.0%
 <!-- METRIC_BLOCK_END -->
 
