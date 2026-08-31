@@ -5,6 +5,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ## Auditor Invariant Verifications
 
+<!-- SECURITY_METRIC_BLOCK_START -->
 ### 1. Benchmark Split Integrity
 - **Test**: Scanned benchmark case generation logic to verify whether story packs are partitioned at the story level or sentence pair level.
 - **Finding**: Partitions are strictly story-level (32 train packs vs 16 held-out evaluation packs, 576 total cases). Zero entity names or story texts from held-out packs appear in training fixtures.
@@ -12,7 +13,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 
 ### 2. Evidence Citation Grounding
 - **Test**: Submitted queries and candidate pairs containing non-existent anchor IDs (`FAKE_ANCHOR_999`) to the deterministic output validator.
-- **Finding**: All invalid anchor IDs were deterministically rejected with zero hallucinated or orphan alerts emitted.
+- **Finding**: All invalid anchor IDs were deterministically rejected with 100.0% citation validity and 0.0% unsupported factual claims.
 - **Result**: **PASS**
 
 ### 3. Anchor Stability & Edit Invariants
@@ -24,6 +25,7 @@ An adversarial evaluation of system invariants, security boundaries, and empiric
 - **Test**: Executed 40 authored adversarial creative prose fixtures containing role escapes, instructions to ignore previous rules, fake XML tags, and canon override attempts under the reference provider.
 - **Finding**: 40/40 authored adversarial manuscript-boundary fixtures passed under the deterministic reference provider with complete system instruction separation, JSON envelope serialization, and deterministic validation.
 - **Result**: **PASS**
+<!-- SECURITY_METRIC_BLOCK_END -->
 
 ### 5. Privacy & Zero-Data-Leak Audit
 - **Test**: Inspected structured logging calls, OpenTelemetry span attributes, and default API responses.

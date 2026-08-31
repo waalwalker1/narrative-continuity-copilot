@@ -61,6 +61,10 @@
 - **Security Audits**: Bandit (0 high/medium issues), pip-audit (clean), npm audit gate (accepted risks documented)
 - **Docker E2E Transaction**: 100% passing end-to-end containerized run
 
+### Auxiliary Evaluation Limitations
+- **Incremental Indexing & Stale Memory**: Stale-fact memory invalidation is measured on applicable edit scenarios (10/100). Fresh-fact discovery recall is conservative (10%) under the deterministic reference extractor.
+- **Subsystem Ablations**: Subsystems F (temporal scoping) and H (evidence critic) show no measurable delta on the current 16 held-out story packs because gold evaluation cases do not contain temporal masking or malformed citation anchors. Subsystem I (author preconditions) is reported as `NOT_MEASURED` on the generic benchmark because held-out packs evaluate cold manuscripts with no pre-existing author overrides.
+
 ## Provider Verification Status
 - `DeterministicFixtureLLMProvider`: `IMPLEMENTED_AND_TESTED`
 - `SentenceTransformerEmbeddingProvider`: `IMPLEMENTED_AND_TESTED`

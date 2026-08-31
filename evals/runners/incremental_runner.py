@@ -20,6 +20,7 @@ from narrative_copilot.structure.parser import compute_text_hash
 class IncrementalBenchmarkRunner:
     """
     Simulates >= 100 realistic manuscript edit scenarios comparing full re-indexing vs true incremental indexing.
+    Measures genuine post-edit memory invalidation, fresh fact discovery recall, re-anchor retention, and chunk reprocessing ratios.
     """
 
     def __init__(self) -> None:
@@ -29,6 +30,7 @@ class IncrementalBenchmarkRunner:
         self.memory_extractor = StoryMemoryExtractor(self.llm_provider)
 
     async def run_benchmark(self, num_scenarios: int = 100) -> dict[str, Any]:
+        stale_scenarios_applicable = 0
         stale_fact_removals_expected = 0
         stale_fact_removals_actual = 0
         fresh_facts_expected = 0
@@ -41,7 +43,7 @@ class IncrementalBenchmarkRunner:
         for i in range(num_scenarios):
             # Base manuscript with 10 paragraphs
             paragraphs = [
-                f"Chapter 1: The Foundations at Oakvale.\n\nParagraph {p}: Arthur Vance had blue eyes in winter."
+                f"Chapter 1: The Foundations at Oakvale.\n\nParagraph {p}: Lord Arthur Vance had blue eyes in winter."
                 if p == 0
                 else f"Paragraph {p}: The guards stood watch upon tower {p} during the midnight patrol."
                 for p in range(10)
@@ -58,7 +60,7 @@ class IncrementalBenchmarkRunner:
                 title=f"Base Manuscript {i}",
             )
 
-            await self.memory_extractor.extract_memory(
+            base_mem = await self.memory_extractor.extract_memory(
                 project_id=proj_id,
                 revision_id=rev_1,
                 units=units_1,
@@ -68,13 +70,15 @@ class IncrementalBenchmarkRunner:
             # Apply a targeted edit to exactly 1 paragraph (e.g. Paragraph 0 or Paragraph (i % 10))
             target_idx = i % 10
             mutated_paragraphs = list(paragraphs)
+            is_stale_applicable = target_idx == 0
+
             if target_idx == 0:
                 mutated_paragraphs[0] = (
-                    "Chapter 1: The Foundations at Oakvale.\n\nParagraph 0: Arthur Vance had green eyes in winter."
+                    "Chapter 1: The Foundations at Oakvale.\n\nParagraph 0: Lord Arthur Vance had green eyes in winter."
                 )
             else:
                 mutated_paragraphs[target_idx] = (
-                    f"Paragraph {target_idx}: Arthur Vance drew the heirloom golden sword in tower {target_idx}."
+                    f"Paragraph {target_idx}: Lord Arthur Vance drew the heirloom golden sword in tower {target_idx}."
                 )
             edited_text = "\n\n".join(mutated_paragraphs)
             rev_2 = "rev_edited"
@@ -119,26 +123,59 @@ class IncrementalBenchmarkRunner:
                 anchors=[a for a in anchors_2 if a.block_id in {b.unit_id for b in changed_blocks}],
             )
 
-            # Verify that changed memory discovered fresh facts
+            # Verify fresh fact discovery
             fresh_facts_expected += 1
             if len(changed_mem.facts) >= 1:
                 fresh_facts_actual += 1
 
-            # Verify stale fact from previous target block is replaced
-            stale_fact_removals_expected += 1
-            stale_fact_removals_actual += 1
+            # Verify stale fact invalidation for applicable scenarios (target_idx == 0)
+            if is_stale_applicable:
+                stale_scenarios_applicable += 1
+                stale_fact_removals_expected += 1
+
+                # Stale condition: verify old base fact ("blue eyes") is not emitted in changed_mem
+                old_eye_facts = [
+                    f
+                    for f in base_mem.facts
+                    if f.predicate == "eye_color" and "blue" in str(f.value).lower()
+                ]
+                new_stale_leak = [
+                    f
+                    for f in changed_mem.facts
+                    if f.predicate == "eye_color" and "blue" in str(f.value).lower()
+                ]
+                if old_eye_facts and not new_stale_leak:
+                    stale_fact_removals_actual += 1
 
         reprocessed_ratio = reprocessed_blocks_across_runs / max(total_blocks_across_runs, 1)
-        stale_precision = stale_fact_removals_actual / max(stale_fact_removals_expected, 1)
+        stale_recall = (
+            stale_fact_removals_actual / max(stale_fact_removals_expected, 1)
+            if stale_fact_removals_expected > 0
+            else 0.0
+        )
+        stale_precision = (
+            stale_fact_removals_actual / max(stale_fact_removals_expected, 1)
+            if stale_fact_removals_expected > 0
+            else 0.0
+        )
         fresh_recall = fresh_facts_actual / max(fresh_facts_expected, 1)
         retention_rate = reanchor_retained / max(total_anchors, 1)
 
         return {
             "scenarios_evaluated": num_scenarios,
+            "stale_fact_scenarios_applicable": stale_scenarios_applicable,
+            "stale_fact_removals_expected": stale_fact_removals_expected,
+            "stale_fact_removals_actual": stale_fact_removals_actual,
+            "stale_fact_removal_recall": round(stale_recall, 4),
             "stale_fact_removal_precision": round(stale_precision, 4),
+            "stale_fact_removal_status": "MEASURED",
+            "fresh_fact_scenarios_applicable": num_scenarios,
+            "fresh_facts_expected": fresh_facts_expected,
+            "fresh_facts_actual": fresh_facts_actual,
             "fresh_fact_discovery_recall": round(fresh_recall, 4),
             "reanchor_retention_rate": round(retention_rate, 4),
             "chunks_reprocessed_ratio": round(reprocessed_ratio, 4),
             "total_blocks_processed": total_blocks_across_runs,
             "reprocessed_blocks": reprocessed_blocks_across_runs,
+            "benchmark_limitations": "Structured fresh-fact extraction is conservative under the deterministic reference extractor (discovering ~10% on explicit attribute statements).",
         }

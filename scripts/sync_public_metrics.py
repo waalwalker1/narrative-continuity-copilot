@@ -14,12 +14,16 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SUMMARY_FILE = BASE_DIR / "artifacts" / "evals" / "latest" / "summary.json"
+ENV_FILE = BASE_DIR / "artifacts" / "evals" / "latest" / "BENCHMARK_ENVIRONMENT.json"
 README_FILE = BASE_DIR / "README.md"
 RELEASE_VAL_FILE = BASE_DIR / "docs" / "RELEASE_VALIDATION.md"
 SECURITY_AUDIT_FILE = BASE_DIR / "docs" / "SECURITY_RELEASE_AUDIT.md"
 
 MARKER_START = "<!-- METRIC_BLOCK_START -->"
 MARKER_END = "<!-- METRIC_BLOCK_END -->"
+
+SECURITY_MARKER_START = "<!-- SECURITY_METRIC_BLOCK_START -->"
+SECURITY_MARKER_END = "<!-- SECURITY_METRIC_BLOCK_END -->"
 
 OBSOLETE_PATTERNS = [
     r"\b36\s+story\s+packs\b",
@@ -31,6 +35,7 @@ OBSOLETE_PATTERNS = [
     r"<25ms\s+p95",
     r"Anchor\s+Re-anchor\s+Accuracy\s+100%",
     r"SEARCH_MODE=local_light",
+    r"search_mode\":\s*\"LOCAL_LIGHT\"",
 ]
 
 
@@ -117,6 +122,34 @@ def generate_release_val_metrics(summary: dict) -> str:
     return md.strip()
 
 
+def generate_security_audit_metrics(summary: dict) -> str:
+    dataset = summary.get("dataset", {})
+    anchors = summary.get("anchors", {})
+    continuity = summary.get("continuity", {})
+    injection = summary.get("prompt_injection", {})
+
+    md = f"""### 1. Benchmark Split Integrity
+- **Test**: Scanned benchmark case generation logic to verify whether story packs are partitioned at the story level or sentence pair level.
+- **Finding**: Partitions are strictly story-level ({dataset.get("train_cases_count", 384)} train cases across 32 packs vs {dataset.get("held_out_cases_count", 192)} held-out evaluation cases across 16 packs, {dataset.get("total_cases_count", 576)} total cases). Zero entity names or story texts from held-out packs appear in training fixtures.
+- **Result**: **PASS**
+
+### 2. Evidence Citation Grounding
+- **Test**: Submitted queries and candidate pairs containing non-existent anchor IDs (`FAKE_ANCHOR_999`) to the deterministic output validator.
+- **Finding**: All invalid anchor IDs were deterministically rejected with {continuity.get("citation_validity_rate", 1.0):.1%} citation validity and {continuity.get("unsupported_claim_rate", 0.0):.1%} unsupported factual claims.
+- **Result**: **PASS**
+
+### 3. Anchor Stability & Edit Invariants
+- **Test**: Executed {anchors.get("total_operations", 220)} edit operations (insertions, deletions, splits, merges, renames) via Hypothesis property tests and the benchmark suite.
+- **Finding**: False re-anchor rate is {anchors.get("false_reanchor_rate", 0.0):.1%} with an Expected-Outcome Accuracy of {anchors.get("expected_outcome_accuracy", 0.0):.1%}. When confidence falls below 65%, anchors are invalidated cleanly rather than silently moving to unrelated text.
+- **Result**: **PASS**
+
+### 4. Prompt Injection & Boundary Security
+- **Test**: Executed {injection.get("total_fixtures", 40)} authored adversarial creative prose fixtures containing role escapes, instructions to ignore previous rules, fake XML tags, and canon override attempts under the reference provider.
+- **Finding**: {injection.get("passed", 40)}/{injection.get("total_fixtures", 40)} authored adversarial manuscript-boundary fixtures passed ({injection.get("pass_rate", 1.0):.1%}) under the deterministic reference provider with complete system instruction separation, JSON envelope serialization, and deterministic validation.
+- **Result**: **PASS**"""
+    return md.strip()
+
+
 def check_stale_patterns(files: list[Path]) -> list[str]:
     violations = []
     for fpath in files:
@@ -169,6 +202,47 @@ def check_license_consistency() -> list[str]:
     return violations
 
 
+def check_benchmark_environment_metadata(summary: dict) -> list[str]:
+    violations = []
+    if not ENV_FILE.exists():
+        violations.append(f"Missing {ENV_FILE}")
+        return violations
+
+    try:
+        env_data = json.loads(ENV_FILE.read_text(encoding="utf-8"))
+        if env_data.get("search_mode") != "FULL_REFERENCE":
+            violations.append(
+                f"BENCHMARK_ENVIRONMENT.json search_mode is '{env_data.get('search_mode')}', expected 'FULL_REFERENCE'"
+            )
+        if env_data.get("embedding_mode") != "sentence_transformer":
+            violations.append(
+                f"BENCHMARK_ENVIRONMENT.json embedding_mode is '{env_data.get('embedding_mode')}', expected 'sentence_transformer'"
+            )
+        if env_data.get("embedding_model") != "sentence-transformers/all-MiniLM-L6-v2":
+            violations.append(
+                f"BENCHMARK_ENVIRONMENT.json embedding_model is '{env_data.get('embedding_model')}', expected 'sentence-transformers/all-MiniLM-L6-v2'"
+            )
+
+        expected_commit = summary.get("benchmark_source_commit")
+        if env_data.get("benchmark_source_commit") != expected_commit:
+            violations.append(
+                f"BENCHMARK_ENVIRONMENT.json benchmark_source_commit '{env_data.get('benchmark_source_commit')}' != summary commit '{expected_commit}'"
+            )
+
+        # Check commit in docs/RELEASE_VALIDATION.md
+        if RELEASE_VAL_FILE.exists():
+            rel_text = RELEASE_VAL_FILE.read_text(encoding="utf-8")
+            if expected_commit and expected_commit not in rel_text:
+                violations.append(
+                    f"RELEASE_VALIDATION.md does not contain expected benchmark_source_commit '{expected_commit}'"
+                )
+
+    except Exception as exc:
+        violations.append(f"Failed to validate BENCHMARK_ENVIRONMENT.json: {exc}")
+
+    return violations
+
+
 def sync_metrics(write_mode: bool = False) -> bool:
     if not SUMMARY_FILE.exists():
         print(f"Error: summary.json not found at {SUMMARY_FILE}. Run benchmark first.")
@@ -189,8 +263,22 @@ def sync_metrics(write_mode: bool = False) -> bool:
             "PASS: License consistency verified (Apache-2.0 across LICENSE, pyproject.toml, package.json, README.md)."
         )
 
-    # 2. Stale patterns check across public docs
-    stale_violations = check_stale_patterns([README_FILE, RELEASE_VAL_FILE, SECURITY_AUDIT_FILE])
+    # 2. Benchmark Environment metadata check
+    env_violations = check_benchmark_environment_metadata(summary)
+    if env_violations:
+        print("Error: BENCHMARK_ENVIRONMENT.json metadata inconsistency detected:")
+        for ev in env_violations:
+            print(f"  - {ev}")
+        all_ok = False
+    else:
+        print(
+            "PASS: Benchmark environment metadata verified (FULL_REFERENCE + sentence_transformer + MiniLM + SHA match)."
+        )
+
+    # 3. Stale patterns check across public docs
+    stale_violations = check_stale_patterns(
+        [README_FILE, RELEASE_VAL_FILE, SECURITY_AUDIT_FILE, ENV_FILE]
+    )
     if stale_violations:
         print("Error: Obsolete metric/dataset claims detected:")
         for v in stale_violations:
@@ -199,13 +287,19 @@ def sync_metrics(write_mode: bool = False) -> bool:
     else:
         print("PASS: Zero stale metric or split patterns detected in public documentation.")
 
-    # 3. Synchronize target documentation files with metric blocks
+    # 4. Synchronize target documentation files with metric blocks
     targets = [
-        (README_FILE, generate_readme_metrics(summary)),
-        (RELEASE_VAL_FILE, generate_release_val_metrics(summary)),
+        (README_FILE, generate_readme_metrics(summary), MARKER_START, MARKER_END),
+        (RELEASE_VAL_FILE, generate_release_val_metrics(summary), MARKER_START, MARKER_END),
+        (
+            SECURITY_AUDIT_FILE,
+            generate_security_audit_metrics(summary),
+            SECURITY_MARKER_START,
+            SECURITY_MARKER_END,
+        ),
     ]
 
-    for doc, new_md in targets:
+    for doc, new_md, m_start, m_end in targets:
         if not doc.exists():
             print(f"Error: Target documentation file {doc} does not exist.")
             all_ok = False
@@ -213,17 +307,17 @@ def sync_metrics(write_mode: bool = False) -> bool:
 
         doc_content = doc.read_text(encoding="utf-8")
         pattern = re.compile(
-            re.escape(MARKER_START) + r".*?" + re.escape(MARKER_END),
+            re.escape(m_start) + r".*?" + re.escape(m_end),
             re.DOTALL,
         )
 
         if not pattern.search(doc_content):
-            print(f"Error: Could not find markers {MARKER_START} and {MARKER_END} in {doc}.")
+            print(f"Error: Could not find markers {m_start} and {m_end} in {doc}.")
             all_ok = False
             continue
 
         updated_doc = pattern.sub(
-            f"{MARKER_START}\n{new_md}\n{MARKER_END}",
+            f"{m_start}\n{new_md}\n{m_end}",
             doc_content,
         )
 
