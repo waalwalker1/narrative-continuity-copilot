@@ -126,6 +126,9 @@ jobs:
       - name: Check Metric Synchronization
         run: |
           PYTHONPATH=src:apps:. uv run python scripts/sync_public_metrics.py --check
+      - name: Verify Tracked Evidence Clean Diff (Reproducibility Gate)
+        run: |
+          git diff --exit-code -- artifacts/evals/latest README.md docs/RELEASE_VALIDATION.md docs/SECURITY_RELEASE_AUDIT.md
 
   security:
     runs-on: ubuntu-latest

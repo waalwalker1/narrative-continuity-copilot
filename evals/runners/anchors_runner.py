@@ -311,4 +311,5 @@ class AnchorBenchmarkRunner:
             "invalidated": actual_counts["INVALIDATED"],
             "retention_rate": round(retention_rate, 4),
             "failure_cases_count": len(failure_cases),
+            "failure_cases": failure_cases,
         }

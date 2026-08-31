@@ -5,7 +5,6 @@ Strictly evaluates over held-out story packs with exact gold-anchor pair matchin
 """
 
 import json
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -44,10 +43,13 @@ class ContinuityEvaluator:
         total_alerts_generated = 0
         unsupported_claims_count = 0
 
-        per_class_stats: dict[str, dict[str, int]] = defaultdict(
-            lambda: {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
-        )
+        from narrative_copilot.schemas import ConflictClass
+
+        per_class_stats: dict[str, dict[str, int]] = {
+            c.value: {"tp": 0, "fp": 0, "fn": 0, "tn": 0} for c in ConflictClass
+        }
         failure_cases: list[dict[str, Any]] = []
+        extra_unmatched_alerts = 0
 
         for pack in packs:
             story_id = pack["story_id"]
@@ -74,12 +76,12 @@ class ContinuityEvaluator:
                         clean_target in a.normalized_quote.lower()
                         or a.normalized_quote.lower() in clean_target
                     ):
-                        return a.anchor_id
+                        return str(a.anchor_id)
                 for u in cur_units:
                     if u.unit_type.value == "block" and clean_target in u.text.lower():
                         for a in cur_anchors:
                             if a.block_id == u.unit_id:
-                                return a.anchor_id
+                                return str(a.anchor_id)
                 return ""
 
             # Extract memory & run continuity review
@@ -181,8 +183,9 @@ class ContinuityEvaluator:
                         }
                     )
 
-            # Any remaining unconsumed alerts are extra unmatched alerts
-            extra_unmatched_alerts = len(available_alerts)
+            # Any remaining unconsumed alerts in this pack are extra unmatched alerts
+            pack_extra_alerts = len(available_alerts)
+            extra_unmatched_alerts += pack_extra_alerts
             for leftover in available_alerts:
                 cls_str = (
                     leftover.conflict_class.value
@@ -190,6 +193,16 @@ class ContinuityEvaluator:
                     else str(leftover.conflict_class)
                 )
                 per_class_stats[cls_str]["fp"] += 1
+                failure_cases.append(
+                    {
+                        "case_id": f"unmatched_{story_id}_{len(failure_cases)}",
+                        "type": "EXTRA_UNMATCHED_ALERT",
+                        "expected": False,
+                        "predicted": True,
+                        "class": cls_str,
+                        "explanation": getattr(leftover, "explanation", "Unmatched spurious alert"),
+                    }
+                )
 
         total_fp_for_precision = false_positives + extra_unmatched_alerts
         precision = true_positives / max(true_positives + total_fp_for_precision, 1)

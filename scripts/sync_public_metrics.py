@@ -243,6 +243,51 @@ def check_benchmark_environment_metadata(summary: dict) -> list[str]:
     return violations
 
 
+def check_auxiliary_reports() -> list[str]:
+    violations = []
+    evals_dir = BASE_DIR / "artifacts" / "evals" / "latest"
+    expected_reports = [
+        "RETRIEVAL_REPORT.md",
+        "CONTINUITY_REPORT.md",
+        "CLASS_BREAKDOWN.md",
+        "ANCHOR_STABILITY_REPORT.md",
+        "INCREMENTAL_UPDATE_REPORT.md",
+        "PROMPT_INJECTION_REPORT.md",
+        "GROUNDING_REPORT.md",
+        "LONG_MANUSCRIPT_REPORT.md",
+        "ABLATION_REPORT.md",
+        "FAILURE_ANALYSIS.md",
+        "PROVIDER_STATUS.md",
+    ]
+    for rep in expected_reports:
+        rep_path = evals_dir / rep
+        if not rep_path.exists():
+            violations.append(f"Missing auxiliary report: {rep}")
+
+    # Check CLASS_BREAKDOWN.md has 12 rows
+    cb_path = evals_dir / "CLASS_BREAKDOWN.md"
+    if cb_path.exists():
+        lines = [
+            line
+            for line in cb_path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("| ")
+            and not line.startswith("| Conflict Class")
+            and not line.startswith("|---")
+        ]
+        if len(lines) != 12:
+            violations.append(f"CLASS_BREAKDOWN.md contains {len(lines)} class rows, expected 12")
+
+    # Check FAILURE_ANALYSIS.md has all 4 sections
+    fa_path = evals_dir / "FAILURE_ANALYSIS.md"
+    if fa_path.exists():
+        fa_text = fa_path.read_text(encoding="utf-8")
+        for section in ("Continuity", "Anchor", "Incremental", "Retrieval"):
+            if section not in fa_text:
+                violations.append(f"FAILURE_ANALYSIS.md missing required section for '{section}'")
+
+    return violations
+
+
 def sync_metrics(write_mode: bool = False) -> bool:
     if not SUMMARY_FILE.exists():
         print(f"Error: summary.json not found at {SUMMARY_FILE}. Run benchmark first.")
@@ -287,7 +332,19 @@ def sync_metrics(write_mode: bool = False) -> bool:
     else:
         print("PASS: Zero stale metric or split patterns detected in public documentation.")
 
-    # 4. Synchronize target documentation files with metric blocks
+    # 4. Auxiliary reports completeness check
+    report_violations = check_auxiliary_reports()
+    if report_violations:
+        print("Error: Auxiliary benchmark reports violation detected:")
+        for rv in report_violations:
+            print(f"  - {rv}")
+        all_ok = False
+    else:
+        print(
+            "PASS: Auxiliary benchmark reports verified (10 reports, 12 classes in CLASS_BREAKDOWN, all 4 sections in FAILURE_ANALYSIS)."
+        )
+
+    # 5. Synchronize target documentation files with metric blocks
     targets = [
         (README_FILE, generate_readme_metrics(summary), MARKER_START, MARKER_END),
         (RELEASE_VAL_FILE, generate_release_val_metrics(summary), MARKER_START, MARKER_END),
@@ -320,6 +377,15 @@ def sync_metrics(write_mode: bool = False) -> bool:
             f"{m_start}\n{new_md}\n{m_end}",
             doc_content,
         )
+
+        # Synchronize commit in RELEASE_VALIDATION.md if present
+        if doc == RELEASE_VAL_FILE and summary.get("benchmark_source_commit"):
+            c_sha = summary["benchmark_source_commit"]
+            updated_doc = re.sub(
+                r"- \*\*Benchmark Source Commit\*\*:\s*`[0-9a-f]{40}`",
+                f"- **Benchmark Source Commit**: `{c_sha}`",
+                updated_doc,
+            )
 
         if write_mode:
             doc.write_text(updated_doc, encoding="utf-8")

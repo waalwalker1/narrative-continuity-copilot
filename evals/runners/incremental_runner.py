@@ -115,13 +115,33 @@ class IncrementalBenchmarkRunner:
                     reanchor_retained += 1
 
             # 3. Incremental Memory Extraction & Invalidation
-            # Extract memory only for changed blocks
+            # Production incremental flow:
+            # (a) Invalidate base facts anchored in changed blocks
+            # (b) Re-extract memory only for changed blocks
+            # (c) Merge retained base memory with changed block memory into final target-revision memory
+            retained_facts = []
+            anchor_lookup_1 = {a.anchor_id: a for a in anchors_1}
+            changed_bids = {b.unit_id for b in changed_blocks}
+
+            for f in base_mem.facts:
+                fact_bids = {
+                    anchor_lookup_1[aid].block_id
+                    for aid in f.evidence_anchor_ids
+                    if aid in anchor_lookup_1
+                }
+                # If fact is tied to a changed block, invalidate it from current target memory
+                if not fact_bids.intersection(changed_bids):
+                    retained_facts.append(f)
+
             changed_mem = await self.memory_extractor.extract_memory(
                 project_id=proj_id,
                 revision_id=rev_2,
                 units=changed_blocks,
-                anchors=[a for a in anchors_2 if a.block_id in {b.unit_id for b in changed_blocks}],
+                anchors=[a for a in anchors_2 if a.block_id in changed_bids],
             )
+
+            # Final merged target-revision memory
+            final_target_facts = retained_facts + changed_mem.facts
 
             # Verify fresh fact discovery
             fresh_facts_expected += 1
@@ -133,27 +153,22 @@ class IncrementalBenchmarkRunner:
                 stale_scenarios_applicable += 1
                 stale_fact_removals_expected += 1
 
-                # Stale condition: verify old base fact ("blue eyes") is not emitted in changed_mem
+                # Stale condition: verify final target memory does not contain active stale fact ("blue eyes")
                 old_eye_facts = [
                     f
                     for f in base_mem.facts
                     if f.predicate == "eye_color" and "blue" in str(f.value).lower()
                 ]
-                new_stale_leak = [
+                stale_in_target = [
                     f
-                    for f in changed_mem.facts
+                    for f in final_target_facts
                     if f.predicate == "eye_color" and "blue" in str(f.value).lower()
                 ]
-                if old_eye_facts and not new_stale_leak:
+                if old_eye_facts and not stale_in_target:
                     stale_fact_removals_actual += 1
 
         reprocessed_ratio = reprocessed_blocks_across_runs / max(total_blocks_across_runs, 1)
         stale_recall = (
-            stale_fact_removals_actual / max(stale_fact_removals_expected, 1)
-            if stale_fact_removals_expected > 0
-            else 0.0
-        )
-        stale_precision = (
             stale_fact_removals_actual / max(stale_fact_removals_expected, 1)
             if stale_fact_removals_expected > 0
             else 0.0
@@ -167,7 +182,8 @@ class IncrementalBenchmarkRunner:
             "stale_fact_removals_expected": stale_fact_removals_expected,
             "stale_fact_removals_actual": stale_fact_removals_actual,
             "stale_fact_removal_recall": round(stale_recall, 4),
-            "stale_fact_removal_precision": round(stale_precision, 4),
+            "stale_fact_removal_precision": None,
+            "stale_fact_removal_precision_status": "NOT_MEASURED",
             "stale_fact_removal_status": "MEASURED",
             "fresh_fact_scenarios_applicable": num_scenarios,
             "fresh_facts_expected": fresh_facts_expected,
@@ -177,5 +193,6 @@ class IncrementalBenchmarkRunner:
             "chunks_reprocessed_ratio": round(reprocessed_ratio, 4),
             "total_blocks_processed": total_blocks_across_runs,
             "reprocessed_blocks": reprocessed_blocks_across_runs,
-            "benchmark_limitations": "Structured fresh-fact extraction is conservative under the deterministic reference extractor (discovering ~10% on explicit attribute statements).",
+            "benchmark_method": "full_target_revision_memory_inspection",
+            "benchmark_limitations": "Structured fresh-fact extraction is conservative under the deterministic reference extractor (discovering ~10% on explicit attribute statements). Stale-fact precision is marked NOT_MEASURED due to the absence of false-invalidation negative denominators across untouched paragraphs.",
         }

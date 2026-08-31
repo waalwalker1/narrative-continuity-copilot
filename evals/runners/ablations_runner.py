@@ -224,6 +224,9 @@ class AblationRunner:
             "description": baseline_cfg.description,
             "measurement_status": "MEASURED",
             "metric_source": "raw_recent_context_baseline",
+            "context_blocks": 5,
+            "uses_elasticsearch": False,
+            "uses_full_story_memory": False,
             "retrieval": {
                 "recall_at_5": round(baseline_eval.get("retrieval_recall_at_5", 0.0), 4),
             },
@@ -323,38 +326,54 @@ class AblationRunner:
                                 return a.anchor_id
                 return ""
 
-            memory = await memory_extractor.extract_memory(
-                project_id=story_id,
-                revision_id="rev_ablation",
-                units=units,
-                anchors=anchors,
-            )
-
-            # Apply ablation perturbations
-            if not config.enable_epistemic_scoping:
-                # Treat dreams and rumors as GLOBAL_CANON / OBSERVED
-                memory = memory.model_copy(
-                    update={
-                        "facts": [
-                            f.model_copy(
-                                update={
-                                    "narrative_scope": NarrativeScope.GLOBAL_CANON,
-                                    "epistemic_status": EpistemicStatus.OBSERVED,
-                                }
-                            )
-                            for f in memory.facts
-                        ]
-                    }
+            if config.use_raw_context_baseline:
+                # Genuinely isolated 5-block raw context baseline (Option A):
+                # Extract structured memory ONLY from the first 5 block units (no full-manuscript memory)
+                block_units = [u for u in units if u.unit_type.value == "block"]
+                scoped_units = block_units[:5]
+                scoped_bids = {u.unit_id for u in scoped_units}
+                scoped_anchors = [a for a in anchors if a.block_id in scoped_bids]
+                memory = await memory_extractor.extract_memory(
+                    project_id=story_id,
+                    revision_id="rev_ablation",
+                    units=scoped_units,
+                    anchors=scoped_anchors,
                 )
-
-            # If raw context baseline, keep only first 5 blocks
-            scoped_units = units[:5] if config.use_raw_context_baseline else units
-
-            alerts = await continuity_engine.review_continuity(
-                memory=memory,
-                anchors=anchors,
-                units=scoped_units,
-            )
+                alerts = await continuity_engine.review_continuity(
+                    memory=memory,
+                    anchors=scoped_anchors,
+                    units=scoped_units,
+                )
+            else:
+                memory = await memory_extractor.extract_memory(
+                    project_id=story_id,
+                    revision_id="rev_ablation",
+                    units=units,
+                    anchors=anchors,
+                )
+                # Apply ablation perturbations
+                if not config.enable_epistemic_scoping:
+                    # Treat dreams and rumors as GLOBAL_CANON / OBSERVED
+                    memory = memory.model_copy(
+                        update={
+                            "facts": [
+                                f.model_copy(
+                                    update={
+                                        "narrative_scope": NarrativeScope.GLOBAL_CANON,
+                                        "epistemic_status": EpistemicStatus.OBSERVED,
+                                    }
+                                )
+                                for f in memory.facts
+                            ]
+                        }
+                    )
+                scoped_units = units
+                scoped_anchors = anchors
+                alerts = await continuity_engine.review_continuity(
+                    memory=memory,
+                    anchors=scoped_anchors,
+                    units=scoped_units,
+                )
 
             available_alerts = list(alerts)
 

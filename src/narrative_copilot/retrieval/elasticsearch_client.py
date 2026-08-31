@@ -511,11 +511,12 @@ class ElasticsearchEngine:
     async def clear_all_indices(self) -> None:
         """Remove all indexed chunk and memory documents across all projects."""
         if self.is_connected() and not self.use_mock:
-            await self.ensure_indices()
             with contextlib.suppress(Exception):
                 client = Elasticsearch(self.es_url)
-                client.delete_by_query(index=CHUNKS_INDEX, body={"query": {"match_all": {}}})
-                client.delete_by_query(index=MEMORY_INDEX, body={"query": {"match_all": {}}})
+                for idx_name in (CHUNKS_INDEX, MEMORY_INDEX):
+                    if client.indices.exists(index=idx_name):
+                        client.indices.delete(index=idx_name)
+            await self.ensure_indices()
         self._mock_chunks.clear()
         self._mock_memory.clear()
 

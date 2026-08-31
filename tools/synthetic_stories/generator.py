@@ -4,6 +4,7 @@ Generates 48 story packs and 576 benchmark cases covering the complete 12-class 
 Enforces strict train vs held-out separation with 16 held-out story packs and 16 cases per class.
 """
 
+import contextlib
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
@@ -411,10 +412,18 @@ def save_synthetic_dataset(output_dir: Path) -> dict[str, Any]:
         f"Dataset must contain all 12 ConflictClass values. Found: {set(per_class_counts.keys())}"
     )
 
+    manifest_file = output_dir / "DATASET_MANIFEST.json"
+    gen_at = datetime.now(UTC).isoformat()
+    if manifest_file.exists():
+        with contextlib.suppress(Exception):
+            existing_m = json.loads(manifest_file.read_text(encoding="utf-8"))
+            if existing_m.get("corpus_sha256") == corpus_hash:
+                gen_at = existing_m.get("generated_at", gen_at)
+
     manifest = {
         "benchmark_version": "1.0.0",
         "generator_version": "2.0.0-reference",
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": gen_at,
         "corpus_sha256": corpus_hash,
         "story_packs_count": len(packs),
         "train_story_ids": train_packs,

@@ -65,6 +65,10 @@ class LongManuscriptRunner:
             f"Manuscript must be at least 60k words, got {actual_word_count}"
         )
 
+        # Clean indices before measuring long manuscript benchmark
+        await self.es_engine.clear_all_indices()
+        await self.es_engine.ensure_indices()
+
         # Measure indexing
         t0 = time.perf_counter()
         units, anchors, _ = self.importer.import_text(
